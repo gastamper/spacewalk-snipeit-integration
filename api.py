@@ -69,6 +69,9 @@ for system in query:
 # Fix release reporting if Ubuntu
     if "bionic" in systemitem['release'] or "xenial" in systemitem['release']:
         systemitem['release'] = "Ubuntu " + systemitem['release']
+# Get network information
+    network = (client.system.getNetwork(key, systemitem['id']))
+    systemitem['ip'] = network['ip']
 # Get DMI information
     dmi = (client.system.getDmi(key, systemitem['id']))
     systemitem['vendor'] = dmi['vendor']
@@ -132,6 +135,8 @@ for system in query:
         dt = str(dtobj.date())
         if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
             patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
+        if snipedata['custom_fields']['IP Address']['value'] != systemitem['ip']:
+            patch(snipeid, '_snipeit_ip_address_40', systemitem['ip'])
         if int(snipedata['custom_fields']['Total RAM']['value']) != int(systemitem['ram']):
             patch(snipeid, '_snipeit_total_ram_20', systemitem['ram'])
         if int(snipedata['custom_fields']['Total CPU']['value']) != int(systemitem['socket_count']):
@@ -145,15 +150,13 @@ for system in query:
         elif snipedata['serial'] != systemitem['serial']:
             patch(snipeid, 'serial', systemitem['serial'])
         if centospkg: print(dmi['asset'])
-    else: print("Skipping update on system not in Snipe")
-#        print("SNIPE DATA")
-#        print(snipedata)
-#        print("SPACEWALK DATA")
+        print(snipedata)
 #        print(systemitem)
+    else: print("Skipping update on system not in Snipe")
 
 # Format up and print data
     id = systemitem
-    print(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial']}, snipeid {snipeid}") 
+    print(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial']}, address {id['ip']}, snipeid {snipeid}") 
 
 print("Logout")
 client.auth.logout(key)
