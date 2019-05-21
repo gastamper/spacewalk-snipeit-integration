@@ -27,11 +27,11 @@ def patch(snipeid, item, data):
 client = xc.Server(SATELLITE_URL, verbose=0)
 key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
 print("Authenticated")
-# Populate a list of systems
+# Populate a list of systems from Spacewalk
 query = client.system.listSystems(key)
 # TODO DEBUGGING
 #sys = [x for x in query if x["name"] == "lxd-02011640"]
-sys = [x for x in query if x["name"] == "lxd-02011810"]
+#sys = [x for x in query if x["name"] == "lxd-02011641"]
 #print(sys)
 #if sys:
 for system in query:
@@ -82,6 +82,12 @@ for system in query:
     else: 
         systemitem['serial'] = systemitem['serial'].partition(")")[0].strip("\'[")
         systemitem['serial'] = systemitem['serial'].strip('[]\' ')
+# Validate if chassis happened to be empty but we have a system tag
+    #TODO make this less terrible
+    if systemitem['serial'] == "empty":
+        systemitem['serial'] = dmi['asset']
+        systemitem['serial'] = str(re.findall("(?<=\(system: )\w+\)", systemitem['serial'])).strip("\'[])")
+        print(systemitem['serial'])
 ### Snipe section
 # Get Snipe ID
     querystring = {"offset":"0","search":str(system['name'])}
@@ -115,7 +121,7 @@ for system in query:
 #        print("SPACEWALK DATA")
 #        print(systemitem)
 # location requires preknown location id
-# Requires no foreknowledge
+# These require no foreknowledge
         for item in ('asset_tag', 'model'):
             if snipedata[item] != systemitem[item]:
                     print("MISMATCH: snipe data: %s, spacewalk data: %s" % (snipedata[item], systemitem[item]))
@@ -124,7 +130,6 @@ for system in query:
         from datetime import datetime
         dtobj = datetime.strptime(str(systemitem['last_checkin']), "%Y%m%dT%H:%M:%S")
         dt = str(dtobj.date())
-#         print(snipedata['custom_fields']['Operating System']['value'])
         if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
             patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
         if int(snipedata['custom_fields']['Total RAM']['value']) != int(systemitem['ram']):
@@ -145,17 +150,7 @@ for system in query:
 #        print(snipedata)
 #        print("SPACEWALK DATA")
 #        print(systemitem)
-#        print(systemitem['last_checkin'])
 
-# Check if data in Spacewalk and Snipe jive
-# DEBUG TODO - this patch process works
-#    if systemitem['tag'] == "02010786":
-#        print("Debugging here")
-#        payload = "{\"status_label\":\"%s\",\"asset_tag\":\"%s\",\"model_id\":\"%s\"}" % \
-#                    ( systemitem['status_label'], systemitem['tag'], systemitem['modelid'] )
-#        patch = requests.request("PATCH", SNIPE_URL + "/" + str(snipeid), headers=headers, data=payload)
-#        newjs = json.loads(patch.text)
-#        print(newjs)
 # Format up and print data
     id = systemitem
     print(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial']}, snipeid {snipeid}") 
