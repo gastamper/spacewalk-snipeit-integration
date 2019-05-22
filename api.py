@@ -1,6 +1,7 @@
 #!/usr/bin/python36
 import xmlrpc.client as xc
 import re, requests, json, configparser
+import logging
 
 config = configparser.ConfigParser()
 config['DEFAULT'] = {'SATELLITE_URL': "https://your_satellite_url",
@@ -19,12 +20,23 @@ headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json",
 #TODO: these should be lists so we can just count() for tallies and append entries
 updated, skipped, unchanged = (0,0,0)
 
+# Logger setup
+logformatter = logging.Formatter(fmt='[%(asctime)-15s %(levelname)6s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger()
+streamhandler = logging.StreamHandler()
+streamhandler.setFormatter(logformatter)
+logger.addHandler(streamhandler)
+logger.setLevel(logging.DEBUG)
+# Turn off urllib3's logging
+for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
+logger.setLevel(logging.DEBUG)
+
 # Function to perform an update to an existing asset entry in Snipe
 def patch(snipeid, item, data):
     payload = "{\"%s\":\"%s\"}" % (str(item), str(data))
     patch = requests.request("PATCH", SNIPE_URL + "/" + str(snipeid), headers=headers, data=payload)
     newjs = json.loads(patch.text)
-    print(f"Patched {str(item)} with {str(data)} on {snipeid}")
+    logger.debug(f"Patched {str(item)} with {str(data)} on {snipeid}")
     return 1
 
 #Populate a list of systems from Spacewalk
@@ -112,7 +124,7 @@ for system in query:
         systemitem['model'] = {'id':68, 'name':'Linux Laptop'}
         systemitem['category'] = {'id':79, 'name':'Managed Linux Laptop'}
     else:
-        print("Couldn't deetrmine model or category from hostname")
+        logger.debug("Couldn't deetrmine model or category from hostname")
     # Required Snipe fields are asset tag, model, and status.
     # Assume anything extant in Spacewalk is ready to deploy
     systemitem['status_label'] = "Ready to Deploy"
@@ -125,8 +137,7 @@ for system in query:
     # These require no foreknowledge
         for item in ('asset_tag', 'model'):
             if snipedata[item] != systemitem[item]:
-                    print("MISMATCH: snipe data: %s, spacewalk data: %s" % (snipedata[item], systemitem[item]))
-                    print("patching %s: %s, %s" % (item, snipedata[item], systemitem[item]))
+                    logger.debug("MISMATCH: snipe data: %s, spacewalk data: %s" % (snipedata[item], systemitem[item]))
                     update = patch(str(snipeid), item, systemitem[item])
         from datetime import datetime
         dtobj = datetime.strptime(str(systemitem['last_checkin']), "%Y%m%dT%H:%M:%S")
@@ -146,7 +157,7 @@ for system in query:
             update = patch(snipeid, '_snipeit_last_checkin_39', dt)
         # Ubuntu spacewalk agent doesn't pull dmidecode information so skip empty entriesi
         if not centospkg: 
-            print("Skipping DMI information check on AMD64 machine")
+            logger.debug("Skipping DMI information check on AMD64 machine")
         elif snipedata['serial'] != systemitem['serial']:
             update = patch(snipeid, 'serial', systemitem['serial'])
         if update != 0: updated += 1
@@ -155,14 +166,13 @@ for system in query:
 #        print(snipedata)
 #        print(systemitem)
     else: 
-        print("Skipping update on system not in Snipe")
+        logger.debug("Skipping update on system not in Snipe")
         skipped += 1
     
 # Format up and print data from this iteration
     id = systemitem
-    print(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
+    logger.info(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
     # /for item in systemgroup
 # Report final data tallies
-print("Totals: %s skipped, %s updated, %s unchanged" % (skipped, updated, unchanged))
-print("Logout")
+logger.info("Totals: %s skipped, %s updated, %s unchanged" % (skipped, updated, unchanged))
 client.auth.logout(key)
