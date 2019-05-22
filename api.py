@@ -94,7 +94,6 @@ for system in query:
     if systemitem['serial'] == "empty":
         systemitem['serial'] = dmi['asset']
         systemitem['serial'] = str(re.findall("(?<=\(system: )\w+\)", systemitem['serial'])).strip("\'[])")
-        print(systemitem['serial'])
 ### Snipe section
 # Get Snipe ID
     querystring = {"offset":"0","search":str(system['name'])}
@@ -161,7 +160,7 @@ for system in query:
     
 # Format up and print data from this iteration
     id = systemitem
-    print(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial']}, address {id['ip']}, snipeid {snipeid}") 
+    print(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
     # /for item in systemgroup
 # Report final data tallies
 print("Totals: %s skipped, %s updated, %s unchanged" % (skipped, updated, unchanged))
