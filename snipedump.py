@@ -1,11 +1,15 @@
 #!/usr/bin/python36
 import requests, json, configparser
-from sys import argv
+from sys import argv, exit
 
 config = configparser.ConfigParser()
 config['DEFAULT'] = {'SNIPE_URL': "https://your_snipe_url/",
                      'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE"}
 config.read('config.ini')
+
+if len(argv) is 1:
+    print("Syntax: %s <asset name>" % argv[0])
+    exit(1)
 
 querystring = {"limit":"1","offset":"0","search":argv[1]}
 headers = { 'authorization': "Bearer " + config['DEFAULT']['API_TOKEN'], 'accept': "application/json", 'content-type': "application/json" }
