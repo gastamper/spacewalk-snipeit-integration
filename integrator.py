@@ -2,6 +2,7 @@
 import xmlrpc.client as xc
 import re, requests, json, configparser
 import logging
+from sys import exit, exc_info
 
 config = configparser.ConfigParser()
 config['DEFAULT'] = {'SATELLITE_URL': "https://your_satellite_url",
@@ -36,13 +37,17 @@ def patch(snipeid, item, data):
     payload = "{\"%s\":\"%s\"}" % (str(item), str(data))
     patch = requests.request("PATCH", SNIPE_URL + "/" + str(snipeid), headers=headers, data=payload)
     newjs = json.loads(patch.text)
-    logger.debug(f"Patched {str(item)} with {str(data)} on {snipeid}")
+    logger.debug(f"Updated {snipeid} field {str(item)} with {str(data)}")
     return 1
 
 #Populate a list of systems from Spacewalk
-client = xc.Server(SATELLITE_URL, verbose=0)
-key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
-query = client.system.listSystems(key)
+with xc.Server(SATELLITE_URL, verbose=0) as client:
+  try:
+    key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
+    query = client.system.listSystems(key)
+  except:
+    logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
+    exit(1)
 # TODO DEBUGGING
 #sys = [x for x in query if x["name"] == "lxd-02011640"]
 #sys = [x for x in query if x["name"] == "lxd-02011641"]
@@ -109,8 +114,16 @@ for system in query:
 ### Snipe section
 # Get Snipe ID
     querystring = {"offset":"0","search":str(system['name'])}
-    id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
+    try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
+    except:
+        logger.error("Error connecting to Snipe: %s" % exc_info()[1])
+        exit(1)
     js = json.loads(id.text)
+    if 'error' in js:
+        if js['error'] == 'Unauthorized.':
+            logger.error("Error from Snipe: Unauthorized (check API key)")
+        else: logger.error("Error from Snipe: %s" % js['error'])
+        exit(1)
     if 'total' in js and js['total'] == 1:
       snipeid = js['rows'][0]['id']
     else: snipeid = "Unknown"
@@ -141,7 +154,7 @@ for system in query:
                     update = patch(str(snipeid), item, systemitem[item])
         from datetime import datetime
         dtobj = datetime.strptime(str(systemitem['last_checkin']), "%Y%m%dT%H:%M:%S")
-        dt = str(dtobj.date())
+        dt = str(dtobj.date()) + " " + str(dtobj.time())
         update = 0
         if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
             update = patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
