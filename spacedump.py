@@ -1,6 +1,6 @@
 #!/usr/bin/python36
 import xmlrpc.client as xc
-import re, requests
+import re, requests, configparser
 from sys import exit, exc_info
 
 config = configparser.ConfigParser()
