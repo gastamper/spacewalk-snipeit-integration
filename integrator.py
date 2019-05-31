@@ -37,25 +37,30 @@ def patch(snipeid, item, data):
     payload = "{\"%s\":\"%s\"}" % (str(item), str(data))
     patch = requests.request("PATCH", SNIPE_URL + "/" + str(snipeid), headers=headers, data=payload)
     newjs = json.loads(patch.text)
-    logger.debug(f"Updated {snipeid} field {str(item)} with {str(data)}")
-    return 1
+    if newjs['status'] != 'error':
+      logger.debug(f"Updated Snipe asset number {snipeid}, field {str(item)} with {str(data)}")
+      return 0
+    else: 
+      logger.error(f"Failed to update Snipe asset number {snipeid}: {newjs['messages']}")
+      return 1
+# Function to create a new entry in Snipe from Spacewalk data
+def post(item, payload):
+    #payload = "{\"%s\":\"%s\"}" % (str(item), str(data))
+    patch = requests.request("POST", SNIPE_URL , headers=headers, data=payload)
+    newjs = json.loads(patch.text)
+    if newjs['status'] != 'error':
+      logger.debug(f"Created new Snipe asset, field {str(item)} with {str(payload)}")
+      return 0
+    else:
+      logger.error(f"Failed to create new Snipe asset: {newjs['messages']}")
+      return 1
 
-#Populate a list of systems from Spacewalk
-with xc.Server(SATELLITE_URL, verbose=0) as client:
-  try:
-    key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
-    query = client.system.listSystems(key)
-  except:
-    logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
-    exit(1)
-# TODO DEBUGGING
-#sys = [x for x in query if x["name"] == "lxd-02011640"]
-#sys = [x for x in query if x["name"] == "lxd-02011641"]
-#print(sys)
-#if sys:
-for system in query:
+# Function to compare Snipe and Spacewalk data and initiate updates if necessary
+def update_item(system):
 # Basic info    
-#    system = sys[0]
+    global unchanged
+    global updated
+    global skipped
     systemitem = {}
     systemitem['id'] = system["id"]
     systemitem['name'] = system["name"]
@@ -113,7 +118,7 @@ for system in query:
         systemitem['serial'] = str(re.findall("(?<=\(system: )\w+\)", systemitem['serial'])).strip("\'[])")
 ### Snipe section
 # Get Snipe ID
-    querystring = {"offset":"0","search":str(system['name'])}
+    querystring = {"offset":"0","search":str(system['name'][4:])}
     try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
     except:
         logger.error("Error connecting to Snipe: %s" % exc_info()[1])
@@ -156,36 +161,68 @@ for system in query:
         dtobj = datetime.strptime(str(systemitem['last_checkin']), "%Y%m%dT%H:%M:%S")
         dt = str(dtobj.date()) + " " + str(dtobj.time())
         update = 0
+        if snipedata['name'] != systemitem['name']:
+            update = patch(snipeid, 'name', systemitem['name'])
         if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
             update = patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
         if snipedata['custom_fields']['IP Address']['value'] != systemitem['ip']:
             update = patch(snipeid, '_snipeit_ip_address_40', systemitem['ip'])
-        if int(snipedata['custom_fields']['Total RAM']['value']) != int(systemitem['ram']):
+        if not snipedata['custom_fields']['Total RAM']['value'] or \
+            int(snipedata['custom_fields']['Total RAM']['value']) != int(systemitem['ram']):
             update = patch(snipeid, '_snipeit_total_ram_20', systemitem['ram'])
-        if int(snipedata['custom_fields']['Total CPU']['value']) != int(systemitem['socket_count']):
+        if not snipedata['custom_fields']['Total CPU']['value'] or \
+            int(snipedata['custom_fields']['Total CPU']['value']) != int(systemitem['socket_count']):
             update = patch(snipeid, '_snipeit_total_cpu_18', systemitem['socket_count'])
-        if int(snipedata['custom_fields']['Total Cores']['value']) != int(systemitem['count']):
+        if not snipedata['custom_fields']['Total Cores']['value'] or \
+            int(snipedata['custom_fields']['Total Cores']['value']) != int(systemitem['count']):
             update = patch(snipeid, '_snipeit_total_cores_19', systemitem['count'])
-        if snipedata['custom_fields']['Last Checkin']['value'] != dt:
-            update = patch(snipeid, '_snipeit_last_checkin_39', dt)
+# Disabled while debugging
+#        if snipedata['custom_fields']['Last Checkin']['value'] != dt:
+#            update = patch(snipeid, '_snipeit_last_checkin_39', dt)
         # Ubuntu spacewalk agent doesn't pull dmidecode information so skip empty entriesi
         if not centospkg: 
-            logger.debug("Skipping DMI information check on AMD64 machine")
+            logger.debug("Skipping DMI information check on AMD64 machine %s" % (systemitem['name']))
         elif snipedata['serial'] != systemitem['serial']:
             update = patch(snipeid, 'serial', systemitem['serial'])
-        if update != 0: updated += 1
+        if update != 0: 
+            updated += 1
+            logger.info(f"Updated {systemitem['name']}")
         else: unchanged += 1
 #        if centospkg: print(dmi['asset'])
 #        print(snipedata)
 #        print(systemitem)
     else: 
-        logger.debug("Skipping update on system not in Snipe")
-        skipped += 1
-    
+        logger.debug("Attempting to add system not in Spice")
+        payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":67, \"item_name\": \"" + systemitem['name'] + "\"}"
+        if (post(systemitem['name'], payload)) != 1:
+            update_item(system)
+        else: skipped += 1
+
+#TODO snipe update section
+    try: 
+      if snipedata['assigned_to']['name'] != systemitem['owner']: logger.debug("Owner mismatch on %s" % systemitem['name'])
+      else: pass
+    except: pass
+        
 # Format up and print data from this iteration
     id = systemitem
-    logger.info(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
+
+#    logger.info(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
     # /for item in systemgroup
+#Populate a list of systems from Spacewalk
+with xc.Server(SATELLITE_URL, verbose=0) as client:
+  try:
+    key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
+    query = client.system.listSystems(key)
+  except:
+    logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
+    exit(1)
+system = [x for x in query if x["name"] == "lxd-01934086"]
+#if system:
+#    update_item(system[0])
+#    query =  system
+for system in query:
+    update_item(system)
 # Report final data tallies
-logger.info("Totals: %s skipped, %s updated, %s unchanged" % (skipped, updated, unchanged))
+logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), skipped, updated, unchanged))
 client.auth.logout(key)
