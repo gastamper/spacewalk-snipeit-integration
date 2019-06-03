@@ -2,6 +2,7 @@
 import xmlrpc.client as xc
 import re, requests, json, configparser
 import logging
+from datetime import datetime
 from sys import exit, exc_info
 
 config = configparser.ConfigParser()
@@ -26,7 +27,6 @@ logger = logging.getLogger()
 streamhandler = logging.StreamHandler()
 streamhandler.setFormatter(logformatter)
 logger.addHandler(streamhandler)
-logger.setLevel(logging.DEBUG)
 # Turn off urllib3's logging
 for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
 logger.setLevel(logging.DEBUG)
@@ -38,10 +38,12 @@ def patch(snipeid, item, data):
     newjs = json.loads(patch.text)
     if newjs['status'] != 'error':
       logger.debug(f"Updated Snipe asset number {snipeid}, field {str(item)} with {str(data)}")
-      return 0
+    # Track updates by returning 1, unfortunately
+      return 1
     else: 
       logger.error(f"Failed to update Snipe asset number {snipeid}: {newjs['messages']}")
-      return 1
+      return 0
+
 # Function to create a new entry in Snipe from Spacewalk data
 def post(item, payload):
     #payload = "{\"%s\":\"%s\"}" % (str(item), str(data))
@@ -57,7 +59,6 @@ def post(item, payload):
 # Function to compare Snipe and Spacewalk data and initiate updates if necessary
 def update_item(system):
 # Basic info    
-    global unchanged
     global updated
     global skipped
     systemitem = {}
@@ -154,35 +155,35 @@ def update_item(system):
     # These require no foreknowledge
         for item in ('asset_tag', 'model'):
             if snipedata[item] != systemitem[item]:
-                    logger.debug("MISMATCH: snipe data: %s, spacewalk data: %s" % (snipedata[item], systemitem[item]))
+                    logger.debug("MISMATCH: Snipe data: %s, Spacewalk data: %s" % (snipedata[item], systemitem[item]))
                     update = patch(str(snipeid), item, systemitem[item])
-        from datetime import datetime
         dtobj = datetime.strptime(str(systemitem['last_checkin']), "%Y%m%dT%H:%M:%S")
         dt = str(dtobj.date()) + " " + str(dtobj.time())
         update = 0
         if snipedata['name'] != systemitem['name']:
-            update = patch(snipeid, 'name', systemitem['name'])
+            update += patch(snipeid, 'name', systemitem['name'])
         if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
-            update = patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
+            update += patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
         if snipedata['custom_fields']['IP Address']['value'] != systemitem['ip']:
-            update = patch(snipeid, '_snipeit_ip_address_40', systemitem['ip'])
+            update += patch(snipeid, '_snipeit_ip_address_40', systemitem['ip'])
+        # Some values set in Snipe don't return as ints until they have data; or clause addresses that
         if not snipedata['custom_fields']['Total RAM']['value'] or \
             int(snipedata['custom_fields']['Total RAM']['value']) != int(systemitem['ram']):
-            update = patch(snipeid, '_snipeit_total_ram_20', systemitem['ram'])
+            update += patch(snipeid, '_snipeit_total_ram_20', systemitem['ram'])
         if not snipedata['custom_fields']['Total CPU']['value'] or \
             int(snipedata['custom_fields']['Total CPU']['value']) != int(systemitem['socket_count']):
-            update = patch(snipeid, '_snipeit_total_cpu_18', systemitem['socket_count'])
+            update += patch(snipeid, '_snipeit_total_cpu_18', systemitem['socket_count'])
         if not snipedata['custom_fields']['Total Cores']['value'] or \
             int(snipedata['custom_fields']['Total Cores']['value']) != int(systemitem['count']):
-            update = patch(snipeid, '_snipeit_total_cores_19', systemitem['count'])
+            update += patch(snipeid, '_snipeit_total_cores_19', systemitem['count'])
 # Disabled while debugging
 #        if snipedata['custom_fields']['Last Checkin']['value'] != dt:
 #            update = patch(snipeid, '_snipeit_last_checkin_39', dt)
-        # Ubuntu spacewalk agent doesn't pull dmidecode information so skip empty entriesi
+        # Ubuntu spacewalk agent doesn't pull dmidecode information so skip empty entries
         if not centospkg: 
             logger.debug("Skipping DMI information check on AMD64 machine %s" % (systemitem['name']))
         elif snipedata['serial'] != systemitem['serial']:
-            update = patch(snipeid, 'serial', systemitem['serial'])
+            update += patch(snipeid, 'serial', systemitem['serial'])
         if update != 0: 
             if systemitem['name'] not in updated: updated.append(systemitem['name'])
             logger.info(f"Updated {systemitem['name']}")
@@ -193,7 +194,9 @@ def update_item(system):
         payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":67, \"item_name\": \"" + systemitem['name'] + "\"}"
         if (post(systemitem['name'], payload)) != 1:
             update_item(system)
-        elif systemitem['name'] not in skipped: skipped.append(systemitem['name'])
+        elif systemitem['name'] not in skipped: 
+            # Update POST failed, so add to skipped
+            skipped.append(systemitem['name'])
 
 #TODO snipe update section
     try: 
@@ -212,7 +215,8 @@ def update_item(system):
     id = systemitem
 
 #    logger.info(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
-    # /for item in systemgroup
+# /for item in systemgroup
+
 #Populate a list of systems from Spacewalk
 with xc.Server(SATELLITE_URL, verbose=0) as client:
   try:
@@ -221,12 +225,17 @@ with xc.Server(SATELLITE_URL, verbose=0) as client:
   except:
     logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
     exit(1)
+
+#  For testing, use a single system
 #system = [x for x in query if x["name"] == "lxd-02010974"]
 #if system:
 #    update_item(system[0])
 #    query =  system
+
+# For all systems:
 for system in query:
     update_item(system)
+
 # Report final data tallies
 logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
 client.auth.logout(key)
