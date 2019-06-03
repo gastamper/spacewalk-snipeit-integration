@@ -199,21 +199,32 @@ def update_item(system):
             skipped.append(systemitem['name'])
 
 #TODO snipe update section
-    try: 
-      if snipedata['assigned_to']['name'] != systemitem['owner']: 
-          logger.debug("Owner mismatch on %s: Snipe says %s, Spacewalk has %s " % (systemitem['name'], snipedata['assigned_to']['name'], systemitem['owner']))
-          try: 
-            request = client.system.setDetails(key, systemitem['id'], {"description":snipedata['assigned_to']['name']})
-            logger.info(f"Updated {systemitem['name']} with new owner {snipedata['assigned_to']['name']}")
-            if systemitem['name'] not in updated: updated.append(systemitem['name'])
-          except:
-            logger.error(f"XMLRPC returned error setting new user on {systemitem['name']}")
-      else: pass
-    except: pass
+    def spacedetails(id, snipeitem, spaceitem, called):
+        try: 
+            request = client.system.setDetails(key, id, {spaceitem:snipeitem})
+            logger.info(f"Updated {systemitem['name']} with new {called}: {snipeitem}")
+            return 1
+        except:
+            logger.error(f"Failed to update Spacewalk id {id} field {spaceitem}({called}) with {snipeitem}")
+            return 0
+    try:
+    # Update owner if item is assigned to someone/where in Snipe
+      if snipedata['assigned_to'] and snipedata['assigned_to']['name'] != systemitem['owner']: 
+          logger.debug("Owner mismatch on %s: Snipe has %s, Spacewalk has %s"  % 
+            (systemitem['name'], snipedata['assigned_to']['name'], systemitem['owner']))
+          update = spacedetails(systemitem['id'], snipedata['assigned_to']['name'], "description", "name")
+          if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
+    # Update location if one exists for item in Snipe
+      if snipedata['rtd_location'] and snipedata['rtd_location']['name'] != systemitem['location']:
+          logger.debug("Location mismatch on %s: Snipe has %s, Spacewalk has %s" %
+            (systemitem['name'], snipedata['rtd_location']['name'], systemitem['location']))
+          update = spacedetails(systemitem['id'], snipedata['rtd_location']['name'], "room", "location")
+          if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
+    # Trap exceptions if Snipe update fails out
+    except: 
+        logger.debug("Errored in Snipe section: %s" % exc_info())
+        pass
         
-# Format up and print data from this iteration
-    id = systemitem
-
 #    logger.info(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
 # /for item in systemgroup
 
