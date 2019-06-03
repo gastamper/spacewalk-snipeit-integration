@@ -18,8 +18,7 @@ SATELLITE_LOGIN = config['DEFAULT']['SATELLITE_LOGIN']
 SATELLITE_PASSWORD = config['DEFAULT']['SATELLITE_PASSWORD']
 API_TOKEN = config['DEFAULT']['API_TOKEN']
 headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
-#TODO: these should be lists so we can just count() for tallies and append entries
-updated, skipped, unchanged = (0,0,0)
+updated, skipped = ([],[])
 
 # Logger setup
 logformatter = logging.Formatter(fmt='[%(asctime)-15s %(levelname)6s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -185,22 +184,27 @@ def update_item(system):
         elif snipedata['serial'] != systemitem['serial']:
             update = patch(snipeid, 'serial', systemitem['serial'])
         if update != 0: 
-            updated += 1
+            if systemitem['name'] not in updated: updated.append(systemitem['name'])
             logger.info(f"Updated {systemitem['name']}")
-        else: unchanged += 1
-#        if centospkg: print(dmi['asset'])
-#        print(snipedata)
-#        print(systemitem)
+#        else: unchanged += 1
+# Add new system to Snipe from Spacewalk data    
     else: 
         logger.debug("Attempting to add system not in Spice")
         payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":67, \"item_name\": \"" + systemitem['name'] + "\"}"
         if (post(systemitem['name'], payload)) != 1:
             update_item(system)
-        else: skipped += 1
+        elif systemitem['name'] not in skipped: skipped.append(systemitem['name'])
 
 #TODO snipe update section
     try: 
-      if snipedata['assigned_to']['name'] != systemitem['owner']: logger.debug("Owner mismatch on %s" % systemitem['name'])
+      if snipedata['assigned_to']['name'] != systemitem['owner']: 
+          logger.debug("Owner mismatch on %s: Snipe says %s, Spacewalk has %s " % (systemitem['name'], snipedata['assigned_to']['name'], systemitem['owner']))
+          try: 
+            request = client.system.setDetails(key, systemitem['id'], {"description":snipedata['assigned_to']['name']})
+            logger.info(f"Updated {systemitem['name']} with new owner {snipedata['assigned_to']['name']}")
+            if systemitem['name'] not in updated: updated.append(systemitem['name'])
+          except:
+            logger.error(f"XMLRPC returned error setting new user on {systemitem['name']}")
       else: pass
     except: pass
         
@@ -217,12 +221,12 @@ with xc.Server(SATELLITE_URL, verbose=0) as client:
   except:
     logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
     exit(1)
-system = [x for x in query if x["name"] == "lxd-01934086"]
+#system = [x for x in query if x["name"] == "lxd-02010974"]
 #if system:
 #    update_item(system[0])
 #    query =  system
 for system in query:
     update_item(system)
 # Report final data tallies
-logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), skipped, updated, unchanged))
+logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
 client.auth.logout(key)
