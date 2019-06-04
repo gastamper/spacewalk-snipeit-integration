@@ -187,7 +187,6 @@ def update_item(system):
         if update != 0: 
             if systemitem['name'] not in updated: updated.append(systemitem['name'])
             logger.info(f"Updated {systemitem['name']}")
-#        else: unchanged += 1
 # Add new system to Snipe from Spacewalk data    
     else: 
         logger.debug("Attempting to add system not in Spice")
@@ -199,6 +198,7 @@ def update_item(system):
             skipped.append(systemitem['name'])
 
 #TODO snipe update section
+# Function to update Spacewalk details for an item
     def spacedetails(id, snipeitem, spaceitem, called):
         try: 
             request = client.system.setDetails(key, id, {spaceitem:snipeitem})
@@ -206,6 +206,7 @@ def update_item(system):
             return 1
         except:
             logger.error(f"Failed to update Spacewalk id {id} field {spaceitem}({called}) with {snipeitem}")
+            logger.debug(f"Error: {exc_info()}")
             return 0
     try:
     # Update owner if item is assigned to someone/where in Snipe
@@ -222,31 +223,33 @@ def update_item(system):
           if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
     # Trap exceptions if Snipe update fails out
     except: 
-        logger.debug("Errored in Snipe section: %s" % exc_info())
+        logger.debug(f"Snipe field comparison failed: {exc_info()}")
         pass
-        
-#    logger.info(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
+    
+#    id = systemitem    
+#    logger.debug(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
 # /for item in systemgroup
 
+if __name__ == "__main__":
 #Populate a list of systems from Spacewalk
-with xc.Server(SATELLITE_URL, verbose=0) as client:
-  try:
-    key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
-    query = client.system.listSystems(key)
-  except:
-    logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
-    exit(1)
+    with xc.Server(SATELLITE_URL, verbose=0) as client:
+        try:
+            key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
+            query = client.system.listSystems(key)
+        except:
+            logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
+            exit(1)
 
 #  For testing, use a single system
-#system = [x for x in query if x["name"] == "lxd-02010974"]
-#if system:
-#    update_item(system[0])
-#    query =  system
+#   system = [x for x in query if x["name"] == "lxd-02010974"]
+#   if system:
+#       update_item(system[0])
+#       query =  system
 
 # For all systems:
-for system in query:
-    update_item(system)
+    for system in query:
+        update_item(system)
 
 # Report final data tallies
-logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
-client.auth.logout(key)
+    logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
+    client.auth.logout(key)
