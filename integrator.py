@@ -104,7 +104,6 @@ def update_item(system):
     # Pull and fix serial tag formatting, skip any secondary regex matches, etc
     # We are only pulling chassis serial; if board is necessary, change below
     systemitem['serial'] = dmi['asset']
-    print(systemitem['serial'])
     systemitem['serial'] = str(re.findall("(?<=\(chassis: )\w+\)", systemitem['serial']))
     # In case of multiple regex returns
     if isinstance(systemitem['serial'], list): 
@@ -117,7 +116,8 @@ def update_item(system):
         systemitem['serial'] = str(re.findall("(?<=\(system: )\w+\)", systemitem['serial'])).strip("\'[])")
 ### Snipe section
 # Get Snipe ID
-    querystring = {"offset":"0","search":str(system['name'][4:])}
+    querystring = {"offset":"0","search":str(system['name'])}
+    logger.debug(f"Searching for f{system['name']}")
     try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
     except:
         logger.error("Error connecting to Snipe: %s" % exc_info()[1])
@@ -132,8 +132,12 @@ def update_item(system):
       snipeid = js['rows'][0]['id']
     else: snipeid = "Unknown"
 # Populate asset tag on Snipe side
-    systemitem['asset_tag'] = systemitem['name'][4:]
+# This section will require changes for any variations on hostname/asset tag setup
+    if systemitem['name'][:4] == "lxd-" or systemitem['name'][:4] == "lxl-":
+        systemitem['asset_tag'] = systemitem['name'][4:]
+    else systemitem['asset_tag'] = systemitem['name']
     type = systemitem['name'][:3]
+
     if type == "lxd":
         systemitem['model'] = {'id':67,'name':'Linux Desktop'}
         systemitem['category'] = {'id':50, 'name':'Managed Linux Desktop'}
@@ -141,7 +145,7 @@ def update_item(system):
         systemitem['model'] = {'id':68, 'name':'Linux Laptop'}
         systemitem['category'] = {'id':79, 'name':'Managed Linux Laptop'}
     else:
-        logger.debug("Couldn't deetrmine model or category from hostname")
+        logger.debug("Couldn't determine model or category from hostname")
     # Required Snipe fields are asset tag, model, and status.
     # Assume anything extant in Spacewalk is ready to deploy
     systemitem['status_label'] = "Ready to Deploy"
