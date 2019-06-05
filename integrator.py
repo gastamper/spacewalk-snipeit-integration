@@ -117,7 +117,6 @@ def update_item(system):
 ### Snipe section
 # Get Snipe ID
     querystring = {"offset":"0","search":str(system['name'])}
-    logger.debug(f"Searching for f{system['name']}")
     try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
     except:
         logger.error("Error connecting to Snipe: %s" % exc_info()[1])
@@ -130,12 +129,14 @@ def update_item(system):
         exit(1)
     if 'total' in js and js['total'] == 1:
       snipeid = js['rows'][0]['id']
-    else: snipeid = "Unknown"
+    else: 
+        snipeid = "Unknown"
+        logger.debug(f"Couldn't find {systemitem['name']} in Snipe")
 # Populate asset tag on Snipe side
 # This section will require changes for any variations on hostname/asset tag setup
     if systemitem['name'][:4] == "lxd-" or systemitem['name'][:4] == "lxl-":
         systemitem['asset_tag'] = systemitem['name'][4:]
-    else systemitem['asset_tag'] = systemitem['name']
+    else: systemitem['asset_tag'] = systemitem['name']
     type = systemitem['name'][:3]
 
     if type == "lxd":
@@ -154,6 +155,7 @@ def update_item(system):
 # Only attempt patching on existing entries in Snipe
     if snipeid != "Unknown":
         snipedata = js['rows'][0]
+        logger.debug(f"Checking system {systemitem['name']}")
     # location requires preknown location id
     # These require no foreknowledge
         for item in ('asset_tag', 'model'):
