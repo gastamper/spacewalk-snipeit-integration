@@ -102,17 +102,16 @@ def update_item(system):
     dmi = (client.system.getDmi(key, systemitem['id']))
     systemitem['vendor'] = dmi['vendor']
     # Pull and fix serial tag formatting, skip any secondary regex matches, etc
+    # We are only pulling chassis serial; if board is necessary, change below
     systemitem['serial'] = dmi['asset']
+    print(systemitem['serial'])
     systemitem['serial'] = str(re.findall("(?<=\(chassis: )\w+\)", systemitem['serial']))
     # In case of multiple regex returns
     if isinstance(systemitem['serial'], list): 
-        systemitem['serial'] = systemitem['serial'][0]
-        systemitem['serial'] = systemitem['serial'].strip('[]\' ')[:-1]
+        systemitem['serial'] = systemitem['serial'][0].strip('[]\' ')[:-1]
     else: 
-        systemitem['serial'] = systemitem['serial'].partition(")")[0].strip("\'[")
-        systemitem['serial'] = systemitem['serial'].strip('[]\' ')
-    # Validate if chassis happened to be empty but we have a system tag
-    #TODO make this less terrible
+        systemitem['serial'] = systemitem['serial'].partition(")")[0].strip("[]\' ")
+    # Validate if chassis happened to be "empty" but we have a system tag, f.e. TYAN systems
     if systemitem['serial'] == "empty":
         systemitem['serial'] = dmi['asset']
         systemitem['serial'] = str(re.findall("(?<=\(system: )\w+\)", systemitem['serial'])).strip("\'[])")
