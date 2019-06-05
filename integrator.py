@@ -134,11 +134,12 @@ def update_item(system):
         logger.debug(f"Couldn't find {systemitem['name']} in Snipe")
 # Populate asset tag on Snipe side
 # This section will require changes for any variations on hostname/asset tag setup
+#CONFIG1
     if systemitem['name'][:4] == "lxd-" or systemitem['name'][:4] == "lxl-":
         systemitem['asset_tag'] = systemitem['name'][4:]
     else: systemitem['asset_tag'] = systemitem['name']
     type = systemitem['name'][:3]
-
+#CONFIG2
     if type == "lxd":
         systemitem['model'] = {'id':67,'name':'Linux Desktop'}
         systemitem['category'] = {'id':50, 'name':'Managed Linux Desktop'}
@@ -149,6 +150,7 @@ def update_item(system):
         logger.debug("Couldn't determine model or category from hostname")
     # Required Snipe fields are asset tag, model, and status.
     # Assume anything extant in Spacewalk is ready to deploy
+    # TODO: move this to new addition section.
     systemitem['status_label'] = "Ready to Deploy"
     systemitem['status_labelid'] = 2
    
@@ -156,8 +158,7 @@ def update_item(system):
     if snipeid != "Unknown":
         snipedata = js['rows'][0]
         logger.debug(f"Checking system {systemitem['name']}")
-    # location requires preknown location id
-    # These require no foreknowledge
+    # Update default fields in Snipe
         for item in ('asset_tag', 'model'):
             if snipedata[item] != systemitem[item]:
                     logger.debug("MISMATCH: Snipe data: %s, Spacewalk data: %s" % (snipedata[item], systemitem[item]))
@@ -167,6 +168,8 @@ def update_item(system):
         update = 0
         if snipedata['name'] != systemitem['name']:
             update += patch(snipeid, 'name', systemitem['name'])
+    # Update custom fields in Snipe
+#CONFIG3
         if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
             update += patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
         if snipedata['custom_fields']['IP Address']['value'] != systemitem['ip']:
@@ -192,6 +195,7 @@ def update_item(system):
         if update != 0: 
             if systemitem['name'] not in updated: updated.append(systemitem['name'])
             logger.info(f"Updated {systemitem['name']}")
+#CONFIG4
 # Add new system to Snipe from Spacewalk data    
     else: 
         logger.debug("Attempting to add system not in Spice")
