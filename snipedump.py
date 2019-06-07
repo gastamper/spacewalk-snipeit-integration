@@ -6,7 +6,7 @@ config = configparser.ConfigParser()
 config['DEFAULT'] = {'SNIPE_URL': "https://your_snipe_url/",
                      'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE"}
 config.read('config.ini')
-queries = [ "hardware", "categories", "models" ]
+queries = [ "hardware", "categories", "models", "licenses", "manufacturers", "fieldsets", "users" ]
 
 def error():
     print("Syntax: %s <query_type> [asset]" % argv[0])
@@ -25,10 +25,16 @@ if js['total'] != 0:
     for i in range(len(js['rows'])):
         print("Result #%s" % i)
         for key, value in js['rows'][i].items():
-            print("%s: %s" % (key, value))
+            if querytype != 'fieldsets': print("%s: %s" % (key, value))
+            else:
+                if key == "fields": 
+                    for x in range(len(value['rows'])):
+                      for k, v in value['rows'][x].items():
+                        print("  %s: %s" % (k, v))
+                else: print("%s: %s" % (key, value))
         if i < (len(js['rows'])) - 1:
             print("----")
-    print("\r\nTotal results: %s" % i)
+    print("\r\nTotal results: %s" % len(js['rows']))
 else:
     if len(argv)>2:
         print("%s doesn't exist in Snipe %s" % (argv[2], argv[1]))
