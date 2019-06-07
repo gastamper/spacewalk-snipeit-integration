@@ -6,18 +6,32 @@ config = configparser.ConfigParser()
 config['DEFAULT'] = {'SNIPE_URL': "https://your_snipe_url/",
                      'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE"}
 config.read('config.ini')
+queries = [ "hardware", "categories", "models" ]
 
-if len(argv) is 1:
-    print("Syntax: %s <asset name>" % argv[0])
+def error():
+    print("Syntax: %s <query_type> [asset]" % argv[0])
+    print("Supported query types: %s" % (', '.join(map(str, queries))))
     exit(1)
 
-querystring = {"limit":"1","offset":"0","search":argv[1]}
+if len(argv) is 1 or argv[1] not in queries: error()
+
+querystring = {"offset":"0","search":argv[2] if len(argv)>2 else ""}
 headers = { 'authorization': "Bearer " + config['DEFAULT']['API_TOKEN'], 'accept': "application/json", 'content-type': "application/json" }
-id = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/hardware", headers=headers, params=querystring)
+querytype = "".join([ x for x in argv[1] if argv[1] in queries])
+id = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/" + querytype, headers=headers, params=querystring)
 
 js = json.loads(id.text)
 if js['total'] != 0:
-    for key, value in js['rows'][0].items():
-        print("%s: %s" % (key, value))
+    for i in range(len(js['rows'])):
+        print("Result #%s" % i)
+        for key, value in js['rows'][i].items():
+            print("%s: %s" % (key, value))
+        if i < (len(js['rows'])) - 1:
+            print("----")
+    print("\r\nTotal results: %s" % i)
 else:
-    print("Item %s doesn't exist in Snipe" % argv[1])
+    if len(argv)>2:
+        print("%s doesn't exist in Snipe %s" % (argv[2], argv[1]))
+    else:
+        print("No entries in Snipe category %s" % argv[1])
+
