@@ -2,7 +2,7 @@
 This project allows for using Spacewalk as a source for automatically importing and updating assets in Snipe-IT, and vice versa.
 
 ## Basic usage:
- - snipedump: dumps fields from any individual asset in Snipe-IT
+ - snipedump: dumps fields from any assets, models or categories in Snipe-IT
  - spacedump: dumps fields from any individual asset in Spacewalk
  - integrator: performs the actual API dump between the two systems
 
