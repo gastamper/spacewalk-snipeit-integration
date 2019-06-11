@@ -1,7 +1,6 @@
 #!/usr/bin/python36
 import xmlrpc.client as xc
-import re, requests, json, configparser
-import logging
+import re, requests, json, configparser, base64, logging
 from datetime import datetime
 from sys import exit, exc_info
 
@@ -10,7 +9,11 @@ config['DEFAULT'] = {'SATELLITE_URL': "https://your_satellite_url",
                      'SATELLITE_LOGIN': "username",
                      'SATELLITE_PASSWORD': "password",
                      'SNIPE_URL': "https://your_snipe_url/",
-                     'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE"}
+                     'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE",
+                     'USE_NUTANIX': False,
+                     'NUTANIX_HOST': "https://nutanix:9440",
+                     'NUTANIX_USERNAME': "username",
+                     'NUTANIX_PASSWORD': "password" }
 config.read('config.ini')
 
 SNIPE_URL = config['DEFAULT']['SNIPE_URL'] + "/api/v1/hardware"
@@ -18,6 +21,12 @@ SATELLITE_URL = config['DEFAULT']['SATELLITE_URL']
 SATELLITE_LOGIN = config['DEFAULT']['SATELLITE_LOGIN']
 SATELLITE_PASSWORD = config['DEFAULT']['SATELLITE_PASSWORD']
 API_TOKEN = config['DEFAULT']['API_TOKEN']
+NUTANIX_HOST = config['DEFAULT']['NUTANIX_HOST']
+NUTANIX_USERNAME = config['DEFAULT']['NUTANIX_USERNAME']
+NUTANIX_PASSWORD = config['DEFAULT']['NUTANIX_PASSWORD']
+USE_NUTANIX = config.getboolean('DEFAULT', 'USE_NUTANIX')
+#config['DEFAULT'].getboolean(['USE_NUTANIX'])
+
 headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 updated, skipped = ([],[])
 
@@ -250,14 +259,29 @@ if __name__ == "__main__":
             exit(1)
 
 #  For testing, use a single system
-#   system = [x for x in query if x["name"] == "lxd-02010974"]
-#   if system:
+#    system = [x for x in query if x["name"] == "lxd-02010974"]
+#    if system:
 #       update_item(system[0])
 #       query =  system
 
-# For all systems:
+# For all Spacewalk systems:
     for system in query:
         update_item(system)
+# For Nutanix VMs
+    if USE_NUTANIX is True:
+        hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
+        base64string = base64.encodestring(hashi.encode("utf-8"))
+        headers = { 'content-type': "application/json",
+                    'authorization': "Basic %s" % base64string.decode("utf-8").replace('\n','') }
+        payload= "{\"kind\":\"vm\"}"
+        try:
+            conn = requests.request("POST", NUTANIX_HOST + "/api/nutanix/v3/vms/list", data=payload, headers=headers)
+        except:
+            logger.error("Error connecting to Nutanix: %s" % exc_info()[1])
+            exit(1)
+        js = json.loads(conn.text)
+        if 'entities' in js:
+            logger.debug("%s Nutanix VMs reported." % len(js['entities']))
 
 # Report final data tallies
     logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
