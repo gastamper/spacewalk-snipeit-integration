@@ -1,44 +1,10 @@
-#!/usr/bin/python36
+#!/usr/bin/env python36
 import xmlrpc.client as xc
 import re, requests, json, configparser, base64, logging
 from datetime import datetime
 from sys import exit, exc_info
 
-config = configparser.ConfigParser()
-config['DEFAULT'] = {'SATELLITE_URL': "https://your_satellite_url",
-                     'SATELLITE_LOGIN': "username",
-                     'SATELLITE_PASSWORD': "password",
-                     'SNIPE_URL': "https://your_snipe_url/",
-                     'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE",
-                     'USE_NUTANIX': False,
-                     'NUTANIX_HOST': "https://nutanix:9440",
-                     'NUTANIX_USERNAME': "username",
-                     'NUTANIX_PASSWORD': "password" }
-config.read('config.ini')
-
-SNIPE_URL = config['DEFAULT']['SNIPE_URL'] + "/api/v1/hardware"
-SATELLITE_URL = config['DEFAULT']['SATELLITE_URL']
-SATELLITE_LOGIN = config['DEFAULT']['SATELLITE_LOGIN']
-SATELLITE_PASSWORD = config['DEFAULT']['SATELLITE_PASSWORD']
-API_TOKEN = config['DEFAULT']['API_TOKEN']
-NUTANIX_HOST = config['DEFAULT']['NUTANIX_HOST']
-NUTANIX_USERNAME = config['DEFAULT']['NUTANIX_USERNAME']
-NUTANIX_PASSWORD = config['DEFAULT']['NUTANIX_PASSWORD']
-USE_NUTANIX = config.getboolean('DEFAULT', 'USE_NUTANIX')
-#config['DEFAULT'].getboolean(['USE_NUTANIX'])
-
-headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 updated, skipped = ([],[])
-
-# Logger setup
-logformatter = logging.Formatter(fmt='[%(asctime)-15s %(levelname)6s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger()
-streamhandler = logging.StreamHandler()
-streamhandler.setFormatter(logformatter)
-logger.addHandler(streamhandler)
-# Turn off urllib3's logging
-for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
-logger.setLevel(logging.DEBUG)
 
 # Function to perform an update to an existing asset entry in Snipe
 def patch(snipeid, item, data):
@@ -123,6 +89,7 @@ def update_item(system):
     if systemitem['serial'] == "empty":
         systemitem['serial'] = dmi['asset']
         systemitem['serial'] = str(re.findall("(?<=\(system: )\w+\)", systemitem['serial'])).strip("\'[])")
+
 ### Snipe section
 # Get Snipe ID
     querystring = {"offset":"0","search":str(system['name'])}
@@ -249,6 +216,39 @@ def update_item(system):
 # /for item in systemgroup
 
 if __name__ == "__main__":
+# ConfigParser setup
+    config = configparser.ConfigParser()
+    config['DEFAULT'] = { 'SATELLITE_URL': "https://your_satellite_url",
+                          'SATELLITE_LOGIN': "username",
+                          'SATELLITE_PASSWORD': "password",
+                          'SNIPE_URL': "https://your_snipe_url/",
+                          'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE",
+                          'USE_NUTANIX': False,
+                          'NUTANIX_HOST': "https://nutanix:9440",
+                          'NUTANIX_USERNAME': "username",
+                          'NUTANIX_PASSWORD': "password" }
+    config.read('config.ini')
+
+    SNIPE_URL = config['DEFAULT']['SNIPE_URL'] + "/api/v1/hardware"
+    SATELLITE_URL = config['DEFAULT']['SATELLITE_URL']
+    SATELLITE_LOGIN = config['DEFAULT']['SATELLITE_LOGIN']
+    SATELLITE_PASSWORD = config['DEFAULT']['SATELLITE_PASSWORD']
+    API_TOKEN = config['DEFAULT']['API_TOKEN']
+    NUTANIX_HOST = config['DEFAULT']['NUTANIX_HOST']
+    NUTANIX_USERNAME = config['DEFAULT']['NUTANIX_USERNAME']
+    NUTANIX_PASSWORD = config['DEFAULT']['NUTANIX_PASSWORD']
+    USE_NUTANIX = config.getboolean('DEFAULT', 'USE_NUTANIX')
+
+# Logger setup
+    logformatter = logging.Formatter(fmt='[%(asctime)-15s %(levelname)6s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger()
+    streamhandler = logging.StreamHandler()
+    streamhandler.setFormatter(logformatter)
+    logger.addHandler(streamhandler)
+    # Turn off urllib3's logging
+    for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
+    logger.setLevel(logging.DEBUG)
+
 #Populate a list of systems from Spacewalk
     with xc.Server(SATELLITE_URL, verbose=0) as client:
         try:
@@ -258,11 +258,12 @@ if __name__ == "__main__":
             logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
             exit(1)
 
+    headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 #  For testing, use a single system
 #    system = [x for x in query if x["name"] == "lxd-02010974"]
 #    if system:
 #       update_item(system[0])
-#       query =  system
+#       query = system
 
 # For all Spacewalk systems:
     for system in query:
@@ -286,3 +287,4 @@ if __name__ == "__main__":
 # Report final data tallies
     logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
     client.auth.logout(key)
+    exit(0)
