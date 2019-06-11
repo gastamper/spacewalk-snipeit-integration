@@ -49,8 +49,8 @@ if system is not None:
     print("DMI: ")
     for k,val in client.system.getDmi(key, system['id']).items():
         print("\t%s: %s" % (k, val))
-    exit(0)
     client.auth.logout(key)
+    exit(0)
 else:
     print("No such system found in Spacewalk.")
     exit(1)
