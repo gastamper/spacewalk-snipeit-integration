@@ -30,20 +30,8 @@ if js['total'] != 0:
             continue
         iteration += 1
         print("Result #%s" % iteration)
-        for key, value in js['rows'][i].items():
-            if querytype != 'fieldsets': print("%s: %s" % (key, value))
-            else:
-                if key == "fields":
-                    print("fields:") 
-                    for x in range(len(value['rows'])):
-                      for k, v in value['rows'][x].items():
-                        print("  %s: %s" % (k, v))
-                      print("  ----")
-                else: print("%s: %s" % (key, value))
-        if i < (len(js['rows'])) - 1:
-            print("----")
+        print(json.dumps(js['rows'][i], indent=2,sort_keys=False))
     print("\r\nTotal results: %s" % iteration)
-#len(js['rows']))
 else:
     if len(argv)>2:
         print("%s doesn't exist in Snipe %s" % (argv[2], argv[1]))
