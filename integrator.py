@@ -221,6 +221,10 @@ def update_item(system):
                     systemitem['model_id'] = item['id']
                     logger.debug("Got model id %s" % item['id'])
         # Update model if mismatch
+#TODO: Document this for configuration
+        if not systemitem['model']:
+            systemitem['model'] = 'Linux Desktop'
+            systemitem['model_id'] = 67
         if systemitem['model'] != snipedata['model']['name']:
             patch(snipeid, 'model_id', systemitem['model_id'])
             logger.info("Updated model to %s" % systemitem['model'])
@@ -322,14 +326,14 @@ if __name__ == "__main__":
 
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 #  For testing, use a single system
-    system = [x for x in query if x["name"] == "lxd-02060885"]
-    if system:
-       update_item(system[0])
-       query = system
+#    system = [x for x in query if x["name"] == "lxd-02060885"]
+#    if system:
+#       update_item(system[0])
+#       query = system
 
 # For all Spacewalk systems:
-#    for system in query:
-#        update_item(system)
+    for system in query:
+        update_item(system)
 # For Nutanix VMs
     if USE_NUTANIX is True:
         hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
