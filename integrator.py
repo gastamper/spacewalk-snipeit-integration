@@ -12,33 +12,28 @@ def patch(snipeid, item, data):
     patch = requests.request("PATCH", SNIPE_URL + "/" + str(snipeid), headers=headers, data=payload)
     newjs = json.loads(patch.text)
     if newjs['status'] != 'error':
-      logger.debug(f"Updated Snipe asset number {snipeid}, field {str(item)} with {str(data)}")
+        logger.debug(f"Updated Snipe asset number {snipeid}, field {str(item)} with {str(data)}")
     # Track updates by returning 1, unfortunately
-      return 1
+        return 1
     else: 
-      logger.error(f"Failed to update Snipe asset number {snipeid}: {newjs['messages']}")
-      return 0
+        logger.error(f"Failed to update Snipe asset number {snipeid}: {newjs['messages']}")
+        return 0
 
 # Function to create a new entry in Snipe from Spacewalk data
 def post(item, payload, item_name):
-    #payload = "{\"%s\":\"%s\"}" % (str(item), str(data))
     patch = requests.request("POST", SNIPE_URL , headers=headers, data=payload)
     newjs = json.loads(patch.text)
     if newjs['status'] != 'error':
-      logger.debug(f"Created new Snipe asset, field {str(item)} with {str(payload)}")
+        logger.debug(f"Created new Snipe asset, field {str(item)} with {str(payload)}")
     else:
-      logger.error(f"Failed to create new Snipe asset: {newjs['messages']}")
-      return 1
-    logger.debug("New tag: %s" % newjs['payload']['asset_tag'])
+        logger.error(f"Failed to create new Snipe asset: {newjs['messages']}")
+        return 1
     patch = requests.request("PATCH", SNIPE_URL + "/" + str(newjs['payload']['id']), headers=headers, data="{\"name\":\"" + item_name + "\"}")
-    print(newjs)
     newjs = json.loads(patch.text)
     if newjs['status'] != 'error':
-      logger.debug("Successfully updated new asset item name")
-      return 0
+        return 0
     else:
-        logger.error("Couldn't update new asset item name")
-        logger.error("%s" % newjs)
+        logger.error(f"Couldn't update new asset item name: {newjs['messages']}")
         return 1
 
 # Function to compare Snipe and Spacewalk data and initiate updates if necessary
@@ -152,10 +147,9 @@ def update_item(system):
         snipedata = js['rows'][0]
         logger.debug(f"Checking system {systemitem['name']}")
     # Update default fields in Snipe
-        for item in ('asset_tag', 'model'):
-            if snipedata[item] != systemitem[item]:
-                    logger.debug("MISMATCH: Snipe data: %s, Spacewalk data: %s" % (snipedata[item], systemitem[item]))
-                    update = patch(str(snipeid), item, systemitem[item])
+        if snipedata['asset_tag'] != systemitem['asset_tag']:
+                    logger.debug("MISMATCH: Snipe data: %s, Spacewalk data: %s" % (snipedata['asset_tag'], systemitem['asset_tag']))
+                    update = patch(str(snipeid), 'asset_tag', systemitem['asset_tag'])
         dtobj = datetime.strptime(str(systemitem['last_checkin']), "%Y%m%dT%H:%M:%S")
         dt = str(dtobj.date()) + " " + str(dtobj.time())
         update = 0
@@ -227,7 +221,7 @@ def update_item(system):
                     systemitem['model_id'] = item['id']
                     logger.debug("Got model id %s" % item['id'])
         # Update model if mismatch
-        if snipedata['model'] != snipedata['model']['name']:
+        if systemitem['model'] != snipedata['model']['name']:
             patch(snipeid, 'model_id', systemitem['model_id'])
             logger.info("Updated model to %s" % systemitem['model'])
 
@@ -240,7 +234,6 @@ def update_item(system):
         logger.debug("Attempting to add system not in Snipe")
         payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":\"67\", \"item_name\": \"" + systemitem['name'] + "\"}"
         #payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":\"" + str(systemitem['model_id']) + "\", \"item_name\": \"" + systemitem['name'] + "\"}"
-        logger.debug("Payload: %s" % payload)
         out = post(systemitem['name'], payload, systemitem['name'])
         if out != 1:
             update_item(system)
