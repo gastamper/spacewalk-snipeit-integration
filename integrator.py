@@ -20,16 +20,26 @@ def patch(snipeid, item, data):
       return 0
 
 # Function to create a new entry in Snipe from Spacewalk data
-def post(item, payload):
+def post(item, payload, item_name):
     #payload = "{\"%s\":\"%s\"}" % (str(item), str(data))
     patch = requests.request("POST", SNIPE_URL , headers=headers, data=payload)
     newjs = json.loads(patch.text)
     if newjs['status'] != 'error':
       logger.debug(f"Created new Snipe asset, field {str(item)} with {str(payload)}")
-      return 0
     else:
       logger.error(f"Failed to create new Snipe asset: {newjs['messages']}")
       return 1
+    logger.debug("New tag: %s" % newjs['payload']['asset_tag'])
+    patch = requests.request("PATCH", SNIPE_URL + "/" + str(newjs['payload']['id']), headers=headers, data="{\"name\":\"" + item_name + "\"}")
+    print(newjs)
+    newjs = json.loads(patch.text)
+    if newjs['status'] != 'error':
+      logger.debug("Successfully updated new asset item name")
+      return 0
+    else:
+        logger.error("Couldn't update new asset item name")
+        logger.error("%s" % newjs)
+        return 1
 
 # Function to compare Snipe and Spacewalk data and initiate updates if necessary
 def update_item(system):
@@ -76,6 +86,7 @@ def update_item(system):
 # Get DMI information
     dmi = (client.system.getDmi(key, systemitem['id']))
     systemitem['vendor'] = dmi['vendor']
+    systemitem['model'] = dmi['product']
     # Pull and fix serial tag formatting, skip any secondary regex matches, etc
     # We are only pulling chassis serial; if board is necessary, change below
     systemitem['serial'] = dmi['asset']
@@ -116,14 +127,20 @@ def update_item(system):
     else: systemitem['asset_tag'] = systemitem['name']
     type = systemitem['name'][:3]
 #CONFIG2
+    systemitem['model'] = dmi['product']
     if type == "lxd":
-        systemitem['model'] = {'id':67,'name':'Linux Desktop'}
         systemitem['category'] = {'id':50, 'name':'Managed Linux Desktop'}
+        systemitem['fieldset_id'] = 3
     elif type == "lxl":
-        systemitem['model'] = {'id':68, 'name':'Linux Laptop'}
         systemitem['category'] = {'id':79, 'name':'Managed Linux Laptop'}
+        systemitem['fieldset_id'] = 3
     else:
-        logger.debug("Couldn't determine model or category from hostname")
+        systemitem['category'] = {'id':77, 'name':'Science Servers'}
+        systemitem['fieldset_id'] = 2
+        logger.debug("Couldn't determine category from hostname, assuming science server")
+        logger.debug("Breaking on machine whose asset tag can't be determined")
+        return 1
+
     # Required Snipe fields are asset tag, model, and status.
     # Assume anything extant in Spacewalk is ready to deploy
     # TODO: move this to new addition section.
@@ -171,13 +188,63 @@ def update_item(system):
         if update != 0: 
             if systemitem['name'] not in updated: updated.append(systemitem['name'])
             logger.info(f"Updated {systemitem['name']}")
+        # Check if manufacturer exists; add if not
+        querystring = {"search":systemitem['vendor']}
+        ret = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/manufacturers", headers=headers,params=querystring)
+        js = json.loads(ret.text)
+        if js['total'] == 0:
+            logger.info("Vendor %s not found, adding to Snipe" % systemitem['vendor'])
+            querystring = {"name":systemitem['vendor']}
+            addvendor = requests.request("POST",  config['DEFAULT']['SNIPE_URL'] + "/api/v1/manufacturers", headers=headers,params=querystring)
+            addvendor = json.loads(addvendor.text)
+            if addvendor['status'] == 'error':
+                logger.error('Failed to add manufacturer: %s' % addvendor['messages'])
+                exit(2)
+            vendorid = addvendor['payload']['id']
+        else:
+            for item in js['rows']:
+                if item['name'] == systemitem['vendor']:
+                    vendorid = item['id']
+                    logger.debug("Got manufacturer id %s" % vendorid)
+        # Check if model exists; add if not
+        querystring = {"search":systemitem['model']}
+        ret = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/models", headers=headers,params=querystring)
+        js = json.loads(ret.text)
+        if js['total'] == 0:
+            logger.info("Model %s not found, adding to Snipe" % systemitem['model'])
+            querystring = {"name":systemitem['model'],"category_id":systemitem['category']['id'],"manufacturer_id":vendorid,"fieldset_id":systemitem['fieldset_id']}
+            addmodel = requests.request("POST",  config['DEFAULT']['SNIPE_URL'] + "/api/v1/models", headers=headers,params=querystring)
+            addmodel = json.loads(addmodel.text)
+            if addmodel['status'] == 'error':
+                logger.error(addmodel)
+                logger.error('Failed to add model: %s' % addmodel['messages'])
+                exit(2)
+            logger.debug(addmodel)
+            systemitem['model_id'] = addmodel['payload']['id']
+        else:
+            for item in js['rows']:
+                if item['name'] == systemitem['model']:
+                    systemitem['model_id'] = item['id']
+                    logger.debug("Got model id %s" % item['id'])
+        # Update model if mismatch
+        if snipedata['model'] != snipedata['model']['name']:
+            patch(snipeid, 'model_id', systemitem['model_id'])
+            logger.info("Updated model to %s" % systemitem['model'])
+
+
 #CONFIG4
 # Add new system to Snipe from Spacewalk data    
     else: 
-        logger.debug("Attempting to add system not in Spice")
-        payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":67, \"item_name\": \"" + systemitem['name'] + "\"}"
-        if (post(systemitem['name'], payload)) != 1:
+#        systemitem['vendor'] = "testman"
+#        systemitem['model'] = "testmodel"
+        logger.debug("Attempting to add system not in Snipe")
+        payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":\"67\", \"item_name\": \"" + systemitem['name'] + "\"}"
+        #payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":\"" + str(systemitem['model_id']) + "\", \"item_name\": \"" + systemitem['name'] + "\"}"
+        logger.debug("Payload: %s" % payload)
+        out = post(systemitem['name'], payload, systemitem['name'])
+        if out != 1:
             update_item(system)
+            logger.debug("Looping")
         elif systemitem['name'] not in skipped: 
             # Update POST failed, so add to skipped
             skipped.append(systemitem['name'])
@@ -193,23 +260,25 @@ def update_item(system):
             logger.error(f"Failed to update Spacewalk id {id} field {spaceitem}({called}) with {snipeitem}")
             logger.debug(f"Error: {exc_info()}")
             return 0
-    try:
     # Update owner if item is assigned to someone/where in Snipe
-      if snipedata['assigned_to'] and snipedata['assigned_to']['name'] != systemitem['owner']: 
-          logger.debug("Owner mismatch on %s: Snipe has %s, Spacewalk has %s"  % 
-            (systemitem['name'], snipedata['assigned_to']['name'], systemitem['owner']))
-          update = spacedetails(systemitem['id'], snipedata['assigned_to']['name'], "description", "name")
-          if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
+    # Can wind up here on snipeitem = "Unknown"
+    if snipeid != "Unknown":
+        try:
+            if snipedata['assigned_to'] and snipedata['assigned_to']['name'] != systemitem['owner']: 
+                logger.debug("Owner mismatch on %s: Snipe has %s, Spacewalk has %s"  % 
+                    (systemitem['name'], snipedata['assigned_to']['name'], systemitem['owner']))
+                update = spacedetails(systemitem['id'], snipedata['assigned_to']['name'], "description", "name")
+            if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
     # Update location if one exists for item in Snipe
-      if snipedata['rtd_location'] and snipedata['rtd_location']['name'] != systemitem['location']:
-          logger.debug("Location mismatch on %s: Snipe has %s, Spacewalk has %s" %
-            (systemitem['name'], snipedata['rtd_location']['name'], systemitem['location']))
-          update = spacedetails(systemitem['id'], snipedata['rtd_location']['name'], "room", "location")
-          if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
+            if snipedata['rtd_location'] and snipedata['rtd_location']['name'] != systemitem['location']:
+                logger.debug("Location mismatch on %s: Snipe has %s, Spacewalk has %s" %
+                    (systemitem['name'], snipedata['rtd_location']['name'], systemitem['location']))
+                update = spacedetails(systemitem['id'], snipedata['rtd_location']['name'], "room", "location")
+                if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
     # Trap exceptions if Snipe update fails out
-    except: 
-        logger.debug(f"Snipe field comparison failed: {exc_info()}")
-        pass
+        except: 
+            logger.debug(f"Snipe field comparison failed: {exc_info()}")
+            pass
     
 #    id = systemitem    
 #    logger.debug(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
@@ -260,14 +329,14 @@ if __name__ == "__main__":
 
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 #  For testing, use a single system
-#    system = [x for x in query if x["name"] == "lxd-02010974"]
-#    if system:
-#       update_item(system[0])
-#       query = system
+    system = [x for x in query if x["name"] == "lxd-02060885"]
+    if system:
+       update_item(system[0])
+       query = system
 
 # For all Spacewalk systems:
-    for system in query:
-        update_item(system)
+#    for system in query:
+#        update_item(system)
 # For Nutanix VMs
     if USE_NUTANIX is True:
         hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
