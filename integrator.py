@@ -147,12 +147,15 @@ def update_item(system):
         snipedata = js['rows'][0]
         logger.debug(f"Checking system {systemitem['name']}")
     # Update default fields in Snipe
+    # In practice, asset tags should always match
         if snipedata['asset_tag'] != systemitem['asset_tag']:
                     logger.debug("MISMATCH: Snipe data: %s, Spacewalk data: %s" % (snipedata['asset_tag'], systemitem['asset_tag']))
                     update = patch(str(snipeid), 'asset_tag', systemitem['asset_tag'])
+    # Last checkin update
         dtobj = datetime.strptime(str(systemitem['last_checkin']), "%Y%m%dT%H:%M:%S")
         dt = str(dtobj.date()) + " " + str(dtobj.time())
         update = 0
+    # Update hostname/item name
         if snipedata['name'] != systemitem['name']:
             update += patch(snipeid, 'name', systemitem['name'])
     # Update custom fields in Snipe
@@ -210,7 +213,6 @@ def update_item(system):
             addmodel = requests.request("POST",  config['DEFAULT']['SNIPE_URL'] + "/api/v1/models", headers=headers,params=querystring)
             addmodel = json.loads(addmodel.text)
             if addmodel['status'] == 'error':
-                logger.error(addmodel)
                 logger.error('Failed to add model: %s' % addmodel['messages'])
                 exit(2)
             logger.debug(addmodel)
@@ -222,9 +224,11 @@ def update_item(system):
                     logger.debug("Got model id %s" % item['id'])
         # Update model if mismatch
 #TODO: Document this for configuration
+        # If no model information (Ubuntu), default to below
         if not systemitem['model']:
             systemitem['model'] = 'Linux Desktop'
             systemitem['model_id'] = 67
+        # If model returned from dmidecode
         if systemitem['model'] != snipedata['model']['name']:
             patch(snipeid, 'model_id', systemitem['model_id'])
             logger.info("Updated model to %s" % systemitem['model'])
@@ -241,7 +245,6 @@ def update_item(system):
         out = post(systemitem['name'], payload, systemitem['name'])
         if out != 1:
             update_item(system)
-            logger.debug("Looping")
         elif systemitem['name'] not in skipped: 
             # Update POST failed, so add to skipped
             skipped.append(systemitem['name'])
