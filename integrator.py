@@ -177,10 +177,10 @@ def update_item(system):
 # Disabled while debugging
 #        if snipedata['custom_fields']['Last Checkin']['value'] != dt:
 #            update = patch(snipeid, '_snipeit_last_checkin_39', dt)
-        # Ubuntu spacewalk agent doesn't pull dmidecode information so skip empty entries
-        if not centospkg: 
-            logger.debug("Skipping DMI information check on AMD64 machine %s" % (systemitem['name']))
-        elif snipedata['serial'] != systemitem['serial']:
+        # Spacewalk agent < version 2.9 has a bug on line 86 of hardware.py, uncomment below to skip DMI info on these machines
+#        if not centospkg: 
+#            logger.debug("Skipping DMI information check on AMD64 machine %s" % (systemitem['name']))
+        if snipedata['serial'] != systemitem['serial']:
             update += patch(snipeid, 'serial', systemitem['serial'])
         if update != 0: 
             if systemitem['name'] not in updated: updated.append(systemitem['name'])
