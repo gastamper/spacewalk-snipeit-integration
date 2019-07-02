@@ -23,6 +23,9 @@ id = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/" + query
 
 js = json.loads(id.text)
 iteration = 0
+if 'error' in js.keys():
+    print('Error: %s' % js['error'])
+    exit(2)
 if js['total'] != 0:
     for i in range(len(js['rows'])):
         # Snipe's API call returns all fieldsets, so filter out those unrelated to query
