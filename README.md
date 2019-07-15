@@ -1,5 +1,7 @@
 # spacewalk-snipeit-integration
 This project allows for using Spacewalk as a source for automatically importing and updating assets in Snipe-IT, and vice versa.
+Note that it is based on the current working tree and may be inoperable at any given commit.  Regardless, functionality within
+your environment *will* require modification of integrator.py.
 
 ## Current state:
 1. Spacewalk <-> Snipe-IT integration largely works as expected

@@ -132,9 +132,9 @@ def update_item(system):
     else:
         systemitem['category'] = {'id':77, 'name':'Science Servers'}
         systemitem['fieldset_id'] = 2
-        logger.debug("Couldn't determine category from hostname, assuming science server")
-        logger.debug("Breaking on machine whose asset tag can't be determined")
-        return 1
+#        logger.debug("Couldn't determine category from hostname, assuming science server")
+#        logger.debug("Breaking on machine whose asset tag can't be determined")
+#        return 1
 
     # Required Snipe fields are asset tag, model, and status.
     # Assume anything extant in Spacewalk is ready to deploy
@@ -148,7 +148,7 @@ def update_item(system):
         logger.debug(f"Checking system {systemitem['name']}")
     # Update default fields in Snipe
     # In practice, asset tags should always match
-        if snipedata['asset_tag'] != systemitem['asset_tag']:
+        if snipedata['asset_tag'] != systemitem['asset_tag'] and systemitem['fieldset_id'] != 2:
                     logger.debug("MISMATCH: Snipe data: %s, Spacewalk data: %s" % (snipedata['asset_tag'], systemitem['asset_tag']))
                     update = patch(str(snipeid), 'asset_tag', systemitem['asset_tag'])
     # Last checkin update
@@ -329,14 +329,14 @@ if __name__ == "__main__":
 
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 #  For testing, use a single system
-#    system = [x for x in query if x["name"] == "lxd-02060885"]
-#    if system:
-#       update_item(system[0])
-#       query = system
+    system = [x for x in query if x["name"] == "lxmgmt"]
+    if system:
+       update_item(system[0])
+       query = system
 
 # For all Spacewalk systems:
-    for system in query:
-        update_item(system)
+#    for system in query:
+#        update_item(system)
 # For Nutanix VMs
     if USE_NUTANIX is True:
         hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
@@ -352,6 +352,9 @@ if __name__ == "__main__":
         js = json.loads(conn.text)
         if 'entities' in js:
             logger.debug("%s Nutanix VMs reported." % len(js['entities']))
+        elif 'state' in js:
+            for item in js['message_list']:
+                logger.debug("Error communicating with Nutanix: %s: %s" % ( js['code'], item['message']))
 
 # Report final data tallies
     logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
