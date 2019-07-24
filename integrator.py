@@ -67,7 +67,14 @@ def update_item(system):
     # Report CentOS and Ubuntu versions differently
     centospkg = [ x for x in packages if x["name"] == "centos-release" ]
     if centospkg:
-        minor, release, what, version, arch = centospkg[0]['release'].split('.')
+        split = centospkg[0]['release'].split('.')
+        if len(split) == 5:
+            minor, release, what, version, arch = split
+        elif len(split) == 4:
+            minor, release, version, arch = split
+        else:
+            logger.error("Couldn't parse CentOS package version")
+            minor, release, version, arch = [0,0,0,"centos"]
         # Strip 'el' prepending release and capitalize arch
         version = re.sub('[^0-9]','',version)
         if arch == "centos": arch = "CentOS"
@@ -174,6 +181,13 @@ def update_item(system):
         if not snipedata['custom_fields']['Total Cores']['value'] or \
             int(snipedata['custom_fields']['Total Cores']['value']) != int(systemitem['count']):
             update += patch(snipeid, '_snipeit_total_cores_19', systemitem['count'])
+        if systemitem['fieldset_id'] == 2:
+            packagelist = client.system.listPackages(key, systemitem['id'])
+            for item in packagelist:
+                if item['name'] == 'gpfs.base':
+                    logger.debug("Found GPFS package")
+#            if not snipedata['custom_fields']['GPFS Client']
+
 # Disabled while debugging
 #        if snipedata['custom_fields']['Last Checkin']['value'] != dt:
 #            update = patch(snipeid, '_snipeit_last_checkin_39', dt)
@@ -329,14 +343,14 @@ if __name__ == "__main__":
 
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 #  For testing, use a single system
-    system = [x for x in query if x["name"] == "lxmgmt"]
-    if system:
-       update_item(system[0])
-       query = system
+#    system = [x for x in query if x["name"] == "lxmgmt"]
+#    if system:
+#       update_item(system[0])
+#       query = system
 
 # For all Spacewalk systems:
-#    for system in query:
-#        update_item(system)
+    for system in query:
+        update_item(system)
 # For Nutanix VMs
     if USE_NUTANIX is True:
         hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
