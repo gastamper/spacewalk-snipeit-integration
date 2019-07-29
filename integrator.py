@@ -7,7 +7,7 @@ from sys import exit, exc_info
 updated, skipped = ([],[])
 # Function to search and return a Snipe data for an item
 def snipesearch(name):
-     querystring = {"offset":"0","search":name}
+     querystring = {"offset":"0","search":str(name)}
      try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
      except:
          logger.error("Error connecting to Snipe: %s" % exc_info()[1])
@@ -371,24 +371,26 @@ if __name__ == "__main__":
     if USE_NUTANIX is True:
         hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
         base64string = base64.encodestring(hashi.encode("utf-8"))
-        headers = { 'content-type': "application/json",
+        nutanixheader = { 'content-type': "application/json",
                     'authorization': "Basic %s" % base64string.decode("utf-8").replace('\n','') }
         payload= "{\"kind\":\"vm\"}"
         try:
-            conn = requests.request("POST", NUTANIX_HOST + "/api/nutanix/v3/vms/list", data=payload, headers=headers)
+            conn = requests.request("POST", NUTANIX_HOST + "/api/nutanix/v3/vms/list", data=payload, headers=nutanixheader)
         except:
             logger.error("Error connecting to Nutanix: %s" % exc_info()[1])
             exit(1)
-        js = json.loads(conn.text)
-        if 'entities' in js:
-            for entity in js['entities']:
+        njs = json.loads(conn.text)
+        if 'entities' in njs:
+            for entity in njs['entities']:
                 print(f"{entity['status']['name']}: {entity['status']['resources']['num_sockets']} sockets x{entity['status']['resources']['num_vcpus_per_socket']} CPU per, {entity['status']['resources']['memory_size_mib']}Mb RAM")
                 print(entity['metadata']['uuid'])
-            logger.debug("%s Nutanix VMs reported." % len(js['entities']))
+                njsdata = snipesearch(entity['metadata']['uuid'])
+                print(njsdata)
+            logger.debug("%s Nutanix VMs reported." % len(njs['entities']))
             #print(json.dumps(js, indent=2))   
-        elif 'state' in js:
-            for item in js['message_list']:
-                logger.debug("Error communicating with Nutanix: %s: %s" % ( js['code'], item['message']))
+        elif 'state' in njs:
+            for item in njs['message_list']:
+                logger.debug("Error communicating with Nutanix: %s: %s" % ( njs['code'], item['message']))
 
 # Report final data tallies
     logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
