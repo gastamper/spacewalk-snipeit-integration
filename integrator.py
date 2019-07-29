@@ -5,6 +5,20 @@ from datetime import datetime
 from sys import exit, exc_info
 
 updated, skipped = ([],[])
+# Function to search and return a Snipe data for an item
+def snipesearch(name):
+     querystring = {"offset":"0","search":name}
+     try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
+     except:
+         logger.error("Error connecting to Snipe: %s" % exc_info()[1])
+         exit(1)
+     js = json.loads(id.text)
+     if 'error' in js:
+         if js['error'] == 'Unauthorized.':
+             logger.error("Error from Snipe: Unauthorized (check API key)")
+         else: logger.error("Error from Snipe: %s" % js['error'])
+         exit(1)
+     return js
 
 # Function to perform an update to an existing asset entry in Snipe
 def patch(snipeid, item, data):
@@ -105,17 +119,19 @@ def update_item(system):
 
 ### Snipe section
 # Get Snipe ID
-    querystring = {"offset":"0","search":str(system['name'])}
-    try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
-    except:
-        logger.error("Error connecting to Snipe: %s" % exc_info()[1])
-        exit(1)
-    js = json.loads(id.text)
-    if 'error' in js:
-        if js['error'] == 'Unauthorized.':
-            logger.error("Error from Snipe: Unauthorized (check API key)")
-        else: logger.error("Error from Snipe: %s" % js['error'])
-        exit(1)
+# TODO REMOVE
+#    querystring = {"offset":"0","search":str(system['name'])}
+#    try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
+#    except:
+#        logger.error("Error connecting to Snipe: %s" % exc_info()[1])
+#        exit(1)
+#    js = json.loads(id.text)
+#    if 'error' in js:
+#        if js['error'] == 'Unauthorized.':
+#            logger.error("Error from Snipe: Unauthorized (check API key)")
+#        else: logger.error("Error from Snipe: %s" % js['error'])
+#        exit(1)
+    js = snipesearch(str(system['name']))
     if 'total' in js and js['total'] == 1:
       snipeid = js['rows'][0]['id']
     else: 
@@ -188,7 +204,7 @@ def update_item(system):
                     logger.debug("Found GPFS package")
 #            if not snipedata['custom_fields']['GPFS Client']
 
-# Disabled while debugging
+# For recording when a machine last checked in with Spacewalk; will balloon SnieIT item history significantly.
 #        if snipedata['custom_fields']['Last Checkin']['value'] != dt:
 #            update = patch(snipeid, '_snipeit_last_checkin_39', dt)
         # Spacewalk agent < version 2.9 has a bug on line 86 of hardware.py, uncomment below to skip DMI info on these machines
@@ -343,14 +359,14 @@ if __name__ == "__main__":
 
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 #  For testing, use a single system
-#    system = [x for x in query if x["name"] == "lxmgmt"]
-#    if system:
-#       update_item(system[0])
-#       query = system
+    system = [x for x in query if x["name"] == "lxmgmt"]
+    if system:
+       update_item(system[0])
+       query = system
 
 # For all Spacewalk systems:
-    for system in query:
-        update_item(system)
+#    for system in query:
+#        update_item(system)
 # For Nutanix VMs
     if USE_NUTANIX is True:
         hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
@@ -365,7 +381,11 @@ if __name__ == "__main__":
             exit(1)
         js = json.loads(conn.text)
         if 'entities' in js:
+            for entity in js['entities']:
+                print(f"{entity['status']['name']}: {entity['status']['resources']['num_sockets']} sockets x{entity['status']['resources']['num_vcpus_per_socket']} CPU per, {entity['status']['resources']['memory_size_mib']}Mb RAM")
+                print(entity['metadata']['uuid'])
             logger.debug("%s Nutanix VMs reported." % len(js['entities']))
+            #print(json.dumps(js, indent=2))   
         elif 'state' in js:
             for item in js['message_list']:
                 logger.debug("Error communicating with Nutanix: %s: %s" % ( js['code'], item['message']))
