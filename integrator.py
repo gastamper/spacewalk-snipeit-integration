@@ -409,7 +409,7 @@ if __name__ == "__main__":
                             int(snipedata['custom_fields']['Total Cores']['value']) != int(entity['status']['resources']['num_vcpus_per_socket']):
                             update += patch(snipeid, '_snipeit_total_cores_19', int(entity['status']['resources']['num_vcpus_per_socket']))
                         if not snipedata['custom_fields']['UUID']['value'] or \
-                            int(snipedata['custom_fields']['UUID']['value']) != str(entity['metadata']['uuid']):
+                            snipedata['custom_fields']['UUID']['value'] != str(entity['metadata']['uuid']):
                             update += patch(snipeid, '_snipeit_uuid_41', entity['metadata']['uuid'])
                     else:
                         print("Something broke when adding asset to Snipe")
