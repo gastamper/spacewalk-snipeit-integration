@@ -383,42 +383,33 @@ if __name__ == "__main__":
         update = 0 
         if 'entities' in njs:
             for entity in njs['entities']:
-                print(f"{entity['status']['name']}: {entity['status']['resources']['num_sockets']} sockets x{entity['status']['resources']['num_vcpus_per_socket']} CPU per, {entity['status']['resources']['memory_size_mib']}Mb RAM")
-                print(entity['metadata']['uuid'])
+#                print(f"{entity['status']['name']}: {entity['status']['resources']['num_sockets']} sockets x{entity['status']['resources']['num_vcpus_per_socket']} CPU per, {entity['status']['resources']['memory_size_mib']}Mb RAM")
                 njsdata = snipesearch(entity['metadata']['uuid'])
-                print(njsdata)
                 if njsdata['total'] == 0:
-                    print("Item not in Snipe")
+                    logger.info(f"Adding new item {entity['status']['name']} to Snipe")
                     payload = "{\"asset_tag\":\"" + entity['status']['name'] + "\", \"status_id\":1, \"model_id\":\"88\", \"item_name\": \"" + entity['status']['name'] + "\"}"
-                    out = post(entity['status']['name'], payload, entity['status']['name'])
-                    if out != 1:
-                        print("Perform individual updates here")
-                        snipedata = snipesearch(entity['status']['name'])
-                        if snipedata['rows'][0]:
-                            snipedata = snipedata['rows'][0]
-                        else:
-                            print("Something broke")
-                        snipeid = snipedata['id']
-                        if not snipedata['custom_fields']['Total RAM']['value'] or \
-                            int(snipedata['custom_fields']['Total RAM']['value']) != int(entity['status']['resources']['memory_size_mib']):
-                            update += patch(snipeid, '_snipeit_total_ram_20', int(entity['status']['resources']['memory_size_mib']))
-                        if not snipedata['custom_fields']['Total CPU']['value'] or \
-                            int(snipedata['custom_fields']['Total CPU']['value']) != int(entity['status']['resources']['num_sockets']):
-                            update += patch(snipeid, '_snipeit_total_cpu_18', int(entity['status']['resources']['num_sockets']))
-                        if not snipedata['custom_fields']['Total Cores']['value'] or \
-                            int(snipedata['custom_fields']['Total Cores']['value']) != int(entity['status']['resources']['num_vcpus_per_socket']):
-                            update += patch(snipeid, '_snipeit_total_cores_19', int(entity['status']['resources']['num_vcpus_per_socket']))
-                        if not snipedata['custom_fields']['UUID']['value'] or \
-                            snipedata['custom_fields']['UUID']['value'] != str(entity['metadata']['uuid']):
-                            update += patch(snipeid, '_snipeit_uuid_41', entity['metadata']['uuid'])
-                    else:
-                        print("Something broke when adding asset to Snipe")
-                        exit(1)
-                    exit(0)
+                    if post(entity['status']['name'], payload, entity['status']['name']) == 1:
+                        logger.error(f"Failed to add {entity['status']['name']} to Snipe")
+                        continue
+                snipedata = snipesearch(entity['status']['name'])
+                if snipedata['rows'][0]:
+                    snipedata = snipedata['rows'][0]
                 else:
-                    print("Update item in Snipe")
+                    logger.error("Something broke")
+                snipeid = snipedata['id']
+                if not snipedata['custom_fields']['Total RAM']['value'] or \
+                    int(snipedata['custom_fields']['Total RAM']['value']) != int(entity['status']['resources']['memory_size_mib']):
+                    update += patch(snipeid, '_snipeit_total_ram_20', int(entity['status']['resources']['memory_size_mib']))
+                if not snipedata['custom_fields']['Total CPU']['value'] or \
+                    int(snipedata['custom_fields']['Total CPU']['value']) != int(entity['status']['resources']['num_sockets']):
+                    update += patch(snipeid, '_snipeit_total_cpu_18', int(entity['status']['resources']['num_sockets']))
+                if not snipedata['custom_fields']['Total Cores']['value'] or \
+                    int(snipedata['custom_fields']['Total Cores']['value']) != int(entity['status']['resources']['num_vcpus_per_socket']):
+                    update += patch(snipeid, '_snipeit_total_cores_19', int(entity['status']['resources']['num_vcpus_per_socket']))
+                if not snipedata['custom_fields']['UUID']['value'] or \
+                    snipedata['custom_fields']['UUID']['value'] != str(entity['metadata']['uuid']):
+                    update += patch(snipeid, '_snipeit_uuid_41', entity['metadata']['uuid'])
             logger.debug("%s Nutanix VMs reported." % len(njs['entities']))
-            #print(json.dumps(js, indent=2))   
         elif 'state' in njs:
             for item in njs['message_list']:
                 logger.debug("Error communicating with Nutanix: %s: %s" % ( njs['code'], item['message']))
