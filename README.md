@@ -5,7 +5,7 @@ your environment *will* require modification of integrator.py.
 
 ## Current state:
 1. Spacewalk <-> Snipe-IT integration largely works as expected
-2. Nutanix API support is preliminary and at present just reports VM count
+2. Nutanix API will add and update virtual machines based on host UUID
 
 ## Basic usage:
  - snipedump: dumps fields from any assets, models, categories, etc in Snipe-IT (consult built-in help for full list)
