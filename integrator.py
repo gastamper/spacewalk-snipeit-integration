@@ -118,19 +118,6 @@ def update_item(system):
         systemitem['serial'] = str(re.findall("(?<=\(system: )\w+\)", systemitem['serial'])).strip("\'[])")
 
 ### Snipe section
-# Get Snipe ID
-# TODO REMOVE
-#    querystring = {"offset":"0","search":str(system['name'])}
-#    try: id = requests.request("GET", SNIPE_URL, headers=headers, params=querystring)
-#    except:
-#        logger.error("Error connecting to Snipe: %s" % exc_info()[1])
-#        exit(1)
-#    js = json.loads(id.text)
-#    if 'error' in js:
-#        if js['error'] == 'Unauthorized.':
-#            logger.error("Error from Snipe: Unauthorized (check API key)")
-#        else: logger.error("Error from Snipe: %s" % js['error'])
-#        exit(1)
     js = snipesearch(str(system['name']))
     if 'total' in js and js['total'] == 1:
       snipeid = js['rows'][0]['id']
@@ -155,9 +142,6 @@ def update_item(system):
     else:
         systemitem['category'] = {'id':77, 'name':'Science Servers'}
         systemitem['fieldset_id'] = 2
-#        logger.debug("Couldn't determine category from hostname, assuming science server")
-#        logger.debug("Breaking on machine whose asset tag can't be determined")
-#        return 1
 
     # Required Snipe fields are asset tag, model, and status.
     # Assume anything extant in Spacewalk is ready to deploy
