@@ -11,8 +11,10 @@ your environment *will* require modification of integrator.py.
  - snipedump: dumps fields from any assets, models, categories, etc in Snipe-IT (consult built-in help for full list)
  - spacedump: dumps fields from any individual asset in Spacewalk
  - nutanixdump: dumps information from Nutanix about all VMs or a specific VM
- - integrator: performs the actual API dump between the two systems
-
+ - integrator: performs the actual API dump between Snipe and Spacewalk/Nutanix systems
+  
+Consult integrator.py's builtin --help for available command-line options  
+  
 ## How it works
 Snipe-IT is authoritative for:
 * Assigned user (stored in Spacewalk's "description" details field) and
@@ -30,6 +32,7 @@ As well as the custom fields:
 * Total RAM
 * Total CPU
 * Total cores
+* UUID (for tracking Nutanix VMs)
 
 ## Configuration
 1. Edit config.ini:
