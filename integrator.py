@@ -413,10 +413,12 @@ if __name__ == "__main__":
                 if not snipedata['custom_fields']['UUID']['value'] or \
                     snipedata['custom_fields']['UUID']['value'] != str(entity['metadata']['uuid']):
                     update += patch(snipeid, '_snipeit_uuid_41', entity['metadata']['uuid'])
-                # Default to deployabl status ID and checkout items directly to Datacenter location for Nutanix VMs
+                # Default to deployable status ID
                 # TODO breakout to separate post_location function or otherwise support error handling
                 if snipedata['status_label']['id'] != 2:
                     update += patch(snipeid, 'status_id', 2)
+                # Checkout directly to Datacenter location
+                if snipedata['assigned_to'] is None:
                     patch = requests.request("POST", SNIPE_URL + "/" + str(snipeid) + "/checkout", headers=headers, data="{\"checkout_to_type\":\"location\",\"assigned_location\":16}")
             logger.debug("%s Nutanix VMs reported." % len(njs['entities']))
         elif 'state' in njs:
