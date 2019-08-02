@@ -6,7 +6,7 @@ config = configparser.ConfigParser()
 config['DEFAULT'] = {'SNIPE_URL': "https://your_snipe_url/",
                      'API_TOKEN': "YOUR_SNIPE_API_TOKEN_HERE"}
 config.read('config.ini')
-queries = [ "hardware", "categories", "models", "licenses", "manufacturers", "fieldsets", "users" ]
+queries = [ "hardware", "categories", "models", "licenses", "manufacturers", "fieldsets", "users", "locations"]
 
 def error():
     print("Syntax: %s <query_type> [asset]" % argv[0])
@@ -20,7 +20,6 @@ querystring = {"offset":"0","search":argv[2] if len(argv)>2 else ""}
 headers = { 'authorization': "Bearer " + config['DEFAULT']['API_TOKEN'], 'accept': "application/json", 'content-type': "application/json" }
 querytype = "".join([ x for x in argv[1] if argv[1] in queries])
 id = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/" + querytype, headers=headers, params=querystring)
-
 js = json.loads(id.text)
 iteration = 0
 if 'error' in js.keys():
