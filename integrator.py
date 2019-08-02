@@ -3,6 +3,14 @@ import xmlrpc.client as xc
 import re, requests, json, configparser, base64, logging
 from datetime import datetime
 from sys import exit, exc_info
+from optparse import OptionParser
+
+parser = OptionParser()
+parser.add_option("-t", "--test", dest="test", action="store_true", default=False, help="test on a single Spacewalk machine")
+parser.add_option("-s", "--skip-spacewalk", dest="skipspacewalk", action="store_true", default=False, help="skip Spacewalk portion")
+parser.add_option("-n", "--skip-nutanix", dest="skipnutanix", action="store_true", default=False, help="skip Nutanix portion")
+(options, args) = parser.parse_args()
+
 
 updated, skipped = ([],[])
 # Function to search and return a Snipe data for an item
@@ -332,27 +340,33 @@ if __name__ == "__main__":
     for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
     logger.setLevel(logging.DEBUG)
 
-#Populate a list of systems from Spacewalk
-    with xc.Server(SATELLITE_URL, verbose=0) as client:
-        try:
-            key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
-            query = client.system.listSystems(key)
-        except:
-            logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
-            exit(1)
-
+# Set headers for connecting to Snipe
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
-#  For testing, use a single system
-    system = [x for x in query if x["name"] == "lxmgmt"]
-    if system:
-       update_item(system[0])
-       query = system
 
+#Populate a list of systems from Spacewalk
+    if options.skipspacewalk is False:
+        with xc.Server(SATELLITE_URL, verbose=0) as client:
+            try:
+                key = client.auth.login(SATELLITE_LOGIN, SATELLITE_PASSWORD)
+                query = client.system.listSystems(key)
+            except:
+                logger.error("Error connecting to Spacewalk: %s" % exc_info()[1])
+                exit(1)
+
+#  For testing, use a single system
+        if options.test is True:
+            system = [x for x in query if x["name"] == "lxmgmt"]
+            if system:
+               update_item(system[0])
+               query = system
+        else:
 # For all Spacewalk systems:
-#    for system in query:
-#        update_item(system)
+            for system in query:
+                update_item(system)
+        client.auth.logout(key)
+
 # For Nutanix VMs
-    if USE_NUTANIX is True:
+    if USE_NUTANIX is True and options.skipnutanix is False:
         hashi = "%s:%s" % (NUTANIX_USERNAME, NUTANIX_PASSWORD)
         base64string = base64.encodestring(hashi.encode("utf-8"))
         nutanixheader = { 'content-type': "application/json",
@@ -369,17 +383,23 @@ if __name__ == "__main__":
             for entity in njs['entities']:
 #                print(f"{entity['status']['name']}: {entity['status']['resources']['num_sockets']} sockets x{entity['status']['resources']['num_vcpus_per_socket']} CPU per, {entity['status']['resources']['memory_size_mib']}Mb RAM")
                 njsdata = snipesearch(entity['metadata']['uuid'])
-                if njsdata['total'] == 0:
+# Snipe returns 0 for total if no returns, thus new system
+                if 'total' in njsdata and njsdata['total'] == 0:
                     logger.info(f"Adding new item {entity['status']['name']} to Snipe")
                     payload = "{\"asset_tag\":\"" + entity['status']['name'] + "\", \"status_id\":1, \"model_id\":\"88\", \"item_name\": \"" + entity['status']['name'] + "\"}"
                     if post(entity['status']['name'], payload, entity['status']['name']) == 1:
                         logger.error(f"Failed to add {entity['status']['name']} to Snipe")
                         continue
+                elif 'total' not in njsdata:
+                    logger.error(f"Something broke querying Snipe")
+                    logger.debug(f"{njsdata}")
+                    exit(1)
+                    
                 snipedata = snipesearch(entity['status']['name'])
-                if snipedata['rows'][0]:
+                if 'rows' in snipedata and snipedata['rows'][0]:
                     snipedata = snipedata['rows'][0]
                 else:
-                    logger.error("Something broke")
+                    logger.error("Something broke querying snipe and no rows were returned")
                 snipeid = snipedata['id']
                 if not snipedata['custom_fields']['Total RAM']['value'] or \
                     int(snipedata['custom_fields']['Total RAM']['value']) != int(entity['status']['resources']['memory_size_mib']):
@@ -399,6 +419,8 @@ if __name__ == "__main__":
                 logger.debug("Error communicating with Nutanix: %s: %s" % ( njs['code'], item['message']))
 
 # Report final data tallies
+    # If Spacewalk is skipped, query is empty
+    try: query
+    except: query = []
     logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
-    client.auth.logout(key)
     exit(0)
