@@ -160,7 +160,7 @@ def update_item(system):
 # Only attempt patching on existing entries in Snipe
     if snipeid != "Unknown":
         snipedata = js['rows'][0]
-        logger.debug(f"Checking system {systemitem['name']}")
+        logger.info(f"Checking system {systemitem['name']}")
     # Update default fields in Snipe
     # In practice, asset tags should always match
         if snipedata['asset_tag'] != systemitem['asset_tag'] and systemitem['fieldset_id'] != 2:
