@@ -302,8 +302,6 @@ def update_item(system):
             logger.debug(f"Snipe field comparison failed: {exc_info()}")
             pass
     
-#    id = systemitem    
-#    logger.debug(f"{id['name']}: {id['owner']}, {id['location']}, {id['release']}, {id['count']} core, {id['socket_count']} socket, {id['mhz']} mhz, {id['ram']} RAM, {id['swap']} swap, serial {id['serial'] if id['serial'] else 'empty'}, address {id['ip']}, snipeid {snipeid}") 
 # /for item in systemgroup
 
 if __name__ == "__main__":
