@@ -9,6 +9,7 @@ parser = OptionParser()
 parser.add_option("-t", "--test", dest="test", action="store_true", default=False, help="test on a single Spacewalk machine")
 parser.add_option("-s", "--skip-spacewalk", dest="skipspacewalk", action="store_true", default=False, help="skip Spacewalk portion")
 parser.add_option("-n", "--skip-nutanix", dest="skipnutanix", action="store_true", default=False, help="skip Nutanix portion")
+parser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help="enable verbose logging")
 (options, args) = parser.parse_args()
 
 
@@ -336,7 +337,9 @@ if __name__ == "__main__":
     logger.addHandler(streamhandler)
     # Turn off urllib3's logging
     for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
-    logger.setLevel(logging.DEBUG)
+    if options.verbose is True:
+        logger.setLevel(logging.DEBUG)
+    else: logger.setLevel(logging.INFO)
 
 # Set headers for connecting to Snipe
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
