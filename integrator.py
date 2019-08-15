@@ -300,13 +300,15 @@ def update_item(system):
         try:
             if snipedata['assigned_to'] and snipedata['assigned_to']['name'] != systemitem['owner']: 
                 logger.debug("Owner mismatch on %s: Snipe has %s, Spacewalk has %s"  % 
-                    (systemitem['name'], snipedata['assigned_to']['name'], systemitem['owner']))
+                    (systemitem['name'], snipedata['assigned_to']['name'], 
+                    (systemitem['owner'] if systemitem['owner'] is not '' else 'None') ))
                 update = spacedetails(systemitem['id'], snipedata['assigned_to']['name'], "description", "name")
             if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
     # Update location if one exists for item in Snipe
             if snipedata['rtd_location'] and snipedata['rtd_location']['name'] != systemitem['location']:
                 logger.debug("Location mismatch on %s: Snipe has %s, Spacewalk has %s" %
-                    (systemitem['name'], snipedata['rtd_location']['name'], systemitem['location']))
+                    (systemitem['name'], snipedata['rtd_location']['name'], 
+                    (systemitem['location'] if systemitem['location'] is not '' else 'None') ))
                 update = spacedetails(systemitem['id'], snipedata['rtd_location']['name'], "room", "location")
                 if systemitem['name'] not in updated and update != 0: updated.append(systemitem['name'])
     # Trap exceptions if Snipe update fails out
