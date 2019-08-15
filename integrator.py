@@ -133,14 +133,19 @@ def update_item(system):
     else: 
         snipeid = "Unknown"
         logger.debug(f"Couldn't find {systemitem['name']} in Snipe")
-# Populate asset tag on Snipe side
-# This section will require changes for any variations on hostname/asset tag setup
+
 #CONFIG1
+# Any logic required to derive asset tag from hostname should go below.
+# In our environment, desktops are LXD-ASSETTAG, laptops are LXL-ASSETTAG
+# Anything that doesn't follow that classification is by default a server
+# Modify the logic below to accomodate your environment.
+# Step 1: derive asset tag from hostname, if applicable
     if systemitem['name'][:4] == "lxd-" or systemitem['name'][:4] == "lxl-":
         systemitem['asset_tag'] = systemitem['name'][4:]
     else: systemitem['asset_tag'] = systemitem['name']
-    type = systemitem['name'][:3]
 #CONFIG2
+# Step 2: determine type based on hostname
+    type = systemitem['name'][:3]
     systemitem['model'] = dmi['product']
     if type == "lxd":
         systemitem['category'] = {'id':50, 'name':'Managed Linux Desktop'}
@@ -174,8 +179,11 @@ def update_item(system):
     # Update hostname/item name
         if snipedata['name'] != systemitem['name']:
             update += patch(snipeid, 'name', systemitem['name'])
-    # Update custom fields in Snipe
+# Update custom fields in Snipe
 #CONFIG3
+# Snipe uses internal database column names to update custom fields;
+# Use snipedump to figure out which fields you want populated, and pull
+# the relevant information out of the Spacewalk API.
         if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
             update += patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
         if snipedata['custom_fields']['IP Address']['value'] != systemitem['ip']:
@@ -190,12 +198,14 @@ def update_item(system):
         if not snipedata['custom_fields']['Total Cores']['value'] or \
             int(snipedata['custom_fields']['Total Cores']['value']) != int(systemitem['count']):
             update += patch(snipeid, '_snipeit_total_cores_19', systemitem['count'])
+# The below example demonstrates looking for specific installed packages
+# for example, if you'd like to populate a column in Snipe-IT for machines
+# which may have a specific package installed (GPFS client in this case)
         if systemitem['fieldset_id'] == 2:
             packagelist = client.system.listPackages(key, systemitem['id'])
             for item in packagelist:
                 if item['name'] == 'gpfs.base':
                     logger.debug("Found GPFS package")
-#            if not snipedata['custom_fields']['GPFS Client']
 
 # For recording when a machine last checked in with Spacewalk; will balloon SnieIT item history significantly.
 #        if snipedata['custom_fields']['Last Checkin']['value'] != dt:
@@ -257,22 +267,23 @@ def update_item(system):
             logger.info("Updated model to %s" % systemitem['model'])
 
 
+# Add new system to Snipe from Spacewalk data
 #CONFIG4
-# Add new system to Snipe from Spacewalk data    
+# When adding a new system to Snipe, you must include the default model
+# for those which have none; in our case this is 67.  Your environment
+# will likely differ.
     else: 
-#        systemitem['vendor'] = "testman"
-#        systemitem['model'] = "testmodel"
         logger.debug("Attempting to add system not in Snipe")
         payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":\"67\", \"item_name\": \"" + systemitem['name'] + "\"}"
         #payload = "{\"asset_tag\":\"" + systemitem['name'][4:] + "\", \"status_id\":1, \"model_id\":\"" + str(systemitem['model_id']) + "\", \"item_name\": \"" + systemitem['name'] + "\"}"
         out = post(systemitem['name'], payload, systemitem['name'])
+# Once the system is added, perform an update with its Spacewalk info
         if out != 1:
             update_item(system)
         elif systemitem['name'] not in skipped: 
             # Update POST failed, so add to skipped
             skipped.append(systemitem['name'])
 
-#TODO snipe update section
 # Function to update Spacewalk details for an item
     def spacedetails(id, snipeitem, spaceitem, called):
         try: 
