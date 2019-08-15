@@ -432,7 +432,7 @@ if __name__ == "__main__":
                 # Checkout directly to Datacenter location
                 if snipedata['assigned_to'] is None:
                     patch = requests.request("POST", SNIPE_URL + "/" + str(snipeid) + "/checkout", headers=headers, data="{\"checkout_to_type\":\"location\",\"assigned_location\":16}")
-            logger.debug("%s Nutanix VMs reported." % len(njs['entities']))
+            logger.info("%s Nutanix VMs reported." % len(njs['entities']))
         elif 'state' in njs:
             for item in njs['message_list']:
                 logger.debug("Error communicating with Nutanix: %s: %s" % ( njs['code'], item['message']))
