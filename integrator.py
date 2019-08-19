@@ -6,7 +6,7 @@ from sys import exit, exc_info
 from optparse import OptionParser
 
 parser = OptionParser()
-parser.add_option("-t", "--test", dest="test", action="store_true", default=False, help="test on a single Spacewalk machine")
+parser.add_option("-t", "--test", dest="test", action="store", default=False, help="test on a single Spacewalk machine")
 parser.add_option("-s", "--skip-spacewalk", dest="skipspacewalk", action="store_true", default=False, help="skip Spacewalk portion")
 parser.add_option("-n", "--skip-nutanix", dest="skipnutanix", action="store_true", default=False, help="skip Nutanix portion")
 parser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help="enable verbose logging")
@@ -368,11 +368,13 @@ if __name__ == "__main__":
                 exit(1)
 
 #  For testing, use a single system
-        if options.test is True:
-            system = [x for x in query if x["name"] == "lxmgmt"]
+        if options.test is not False:
+            system = [x for x in query if x["name"] == options.test]
             if system:
                update_item(system[0])
                query = system
+               client.auth.logout(key)
+               exit(0)
         else:
 # For all Spacewalk systems:
             for system in query:
