@@ -235,7 +235,7 @@ def update_item(system):
             for item in js['rows']:
                 if item['name'] == systemitem['vendor']:
                     vendorid = item['id']
-                    logger.debug("Got manufacturer id %s" % vendorid)
+                    logger.debug(f"Got manufacturer id {vendorid}: {systemitem['vendor']}")
         # Check if model exists; add if not
         querystring = {"search":systemitem['model']}
         ret = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/models", headers=headers,params=querystring)
@@ -254,7 +254,7 @@ def update_item(system):
             for item in js['rows']:
                 if item['name'] == systemitem['model']:
                     systemitem['model_id'] = item['id']
-                    logger.debug("Got model id %s" % item['id'])
+                    logger.debug(f"Got model id {item['id']}: {systemitem['model']}")
         # Update model if mismatch
 #TODO: Document this for configuration
         # If no model information (Ubuntu), default to below
