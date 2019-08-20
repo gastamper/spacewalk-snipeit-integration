@@ -398,9 +398,9 @@ if __name__ == "__main__":
             logger.error("Error connecting to Nutanix: %s" % exc_info()[1])
             exit(1)
         njs = json.loads(conn.text)
-        update = 0 
         if 'entities' in njs:
             for entity in njs['entities']:
+                update = 0 
 #                print(f"{entity['status']['name']}: {entity['status']['resources']['num_sockets']} sockets x{entity['status']['resources']['num_vcpus_per_socket']} CPU per, {entity['status']['resources']['memory_size_mib']}Mb RAM")
                 njsdata = snipesearch(entity['metadata']['uuid'])
 # Snipe returns 0 for total if no returns, thus new system
@@ -410,11 +410,12 @@ if __name__ == "__main__":
                     if post(entity['status']['name'], payload, entity['status']['name']) == 1:
                         logger.error(f"Failed to add {entity['status']['name']} to Snipe")
                         continue
+                    if entity['metadata']['uuid'] not in updated: updated.append(entity['metadata']['uuid'])
                 elif 'total' not in njsdata:
                     logger.error(f"Something broke querying Snipe")
                     logger.debug(f"{njsdata}")
                     exit(1)
-                    
+                logger.info(f"Checking Nutanix VM {entity['metadata']['uuid']}: {entity['status']['name']}")    
                 snipedata = snipesearch(entity['status']['name'])
                 if 'rows' in snipedata and snipedata['rows'][0]:
                     snipedata = snipedata['rows'][0]
@@ -440,6 +441,7 @@ if __name__ == "__main__":
                 # Checkout directly to Datacenter location
                 if snipedata['assigned_to'] is None:
                     patch = requests.request("POST", SNIPE_URL + "/" + str(snipeid) + "/checkout", headers=headers, data="{\"checkout_to_type\":\"location\",\"assigned_location\":16}")
+                if entity['metadata']['uuid'] not in updated and update != 0: updated.append(entity['metadata']['uuid'])
             logger.info("%s Nutanix VMs reported." % len(njs['entities']))
         elif 'state' in njs:
             for item in njs['message_list']:
@@ -448,6 +450,7 @@ if __name__ == "__main__":
 # Report final data tallies
     # If Spacewalk is skipped, query is empty
     try: query
-    except: query = []
+    except: query = njs['entities']
+    logger.debug(updated)
     logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
     exit(0)
