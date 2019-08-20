@@ -228,7 +228,8 @@ def update_item(system):
             addvendor = requests.request("POST",  config['DEFAULT']['SNIPE_URL'] + "/api/v1/manufacturers", headers=headers,params=querystring)
             addvendor = json.loads(addvendor.text)
             if addvendor['status'] == 'error':
-                logger.error(f"Failed to add manufacturer {systemitem['vendor']}: {addvendor['messages']}")
+                buf = ' '.join([value[0] for value in addvendor['messages'].values()])
+                logger.error(f"Failed to add manufacturer {systemitem['vendor']}: {buf}")
                 exit(2)
             vendorid = addvendor['payload']['id']
         else:
@@ -246,7 +247,8 @@ def update_item(system):
             addmodel = requests.request("POST",  config['DEFAULT']['SNIPE_URL'] + "/api/v1/models", headers=headers,params=querystring)
             addmodel = json.loads(addmodel.text)
             if addmodel['status'] == 'error':
-                logger.error(f"Failed to add model {systemitem['model']}: {addmodel['messages']}")
+                buf = ' '.join([value[0] for value in addvendor['messages'].values()])
+                logger.error(f"Failed to add model {systemitem['model']}: {buf}")
                 exit(2)
             logger.debug(addmodel)
             systemitem['model_id'] = addmodel['payload']['id']
