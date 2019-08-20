@@ -241,6 +241,8 @@ def update_item(system):
         querystring = {"search":systemitem['model']}
         ret = requests.request("GET", config['DEFAULT']['SNIPE_URL'] + "/api/v1/models", headers=headers,params=querystring)
         js = json.loads(ret.text)
+        # Snipe-IT will happily add an identical model (with no error) if allowed to do so; it is up to the program
+        # calling the API to make sure there is no duplication of models.
         if js['total'] == 0:
             logger.info("Model %s not found, adding to Snipe" % systemitem['model'])
             querystring = {"name":systemitem['model'],"category_id":systemitem['category']['id'],"manufacturer_id":vendorid,"fieldset_id":systemitem['fieldset_id']}
