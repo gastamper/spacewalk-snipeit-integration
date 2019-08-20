@@ -154,8 +154,9 @@ def update_item(system):
         systemitem['category'] = {'id':79, 'name':'Managed Linux Laptop'}
         systemitem['fieldset_id'] = 3
     else:
-        systemitem['category'] = {'id':77, 'name':'Science Servers'}
-        systemitem['fieldset_id'] = 2
+        systemitem['category'] = {'id':DEFAULT_CATEGORY, 
+                                  'name':config['SNIPE']['DEFAULT_CATEGORY_NAME']}
+        systemitem['fieldset_id'] = DEFAULT_FIELDSET
 
     # Required Snipe fields are asset tag, model, and status.
     # Assume anything extant in Spacewalk is ready to deploy
@@ -184,20 +185,21 @@ def update_item(system):
 # Snipe uses internal database column names to update custom fields;
 # Use snipedump to figure out which fields you want populated, and pull
 # the relevant information out of the Spacewalk API.
-        if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
-            update += patch(snipeid, '_snipeit_operating_system_12', systemitem['release'])
-        if snipedata['custom_fields']['IP Address']['value'] != systemitem['ip']:
-            update += patch(snipeid, '_snipeit_ip_address_40', systemitem['ip'])
-        # Some values set in Snipe don't return as ints until they have data; or clause addresses that
-        if not snipedata['custom_fields']['Total RAM']['value'] or \
-            int(snipedata['custom_fields']['Total RAM']['value']) != int(systemitem['ram']):
-            update += patch(snipeid, '_snipeit_total_ram_20', systemitem['ram'])
-        if not snipedata['custom_fields']['Total CPU']['value'] or \
-            int(snipedata['custom_fields']['Total CPU']['value']) != int(systemitem['socket_count']):
-            update += patch(snipeid, '_snipeit_total_cpu_18', systemitem['socket_count'])
-        if not snipedata['custom_fields']['Total Cores']['value'] or \
-            int(snipedata['custom_fields']['Total Cores']['value']) != int(systemitem['count']):
-            update += patch(snipeid, '_snipeit_total_cores_19', systemitem['count'])
+        if CUSTOM_FIELDS is True:
+            if snipedata['custom_fields']['Operating System']['value'] != systemitem['release']:
+                update += patch(snipeid, config['SNIPE']['OPERATING_SYSTEM'], systemitem['release'])
+            if snipedata['custom_fields']['IP Address']['value'] != systemitem['ip']:
+                update += patch(snipeid, config['SNIPE']['IP_ADDRESS'], systemitem['ip'])
+            # Some values set in Snipe don't return as ints until they have data; or clause addresses that
+            if not snipedata['custom_fields']['Total RAM']['value'] or \
+                int(snipedata['custom_fields']['Total RAM']['value']) != int(systemitem['ram']):
+                update += patch(snipeid, config['SNIPE']['TOTAL_RAM'], systemitem['ram'])
+            if not snipedata['custom_fields']['Total CPU']['value'] or \
+                int(snipedata['custom_fields']['Total CPU']['value']) != int(systemitem['socket_count']):
+                update += patch(snipeid, config['SNIPE']['TOTAL_CPU'], systemitem['socket_count'])
+            if not snipedata['custom_fields']['Total Cores']['value'] or \
+                int(snipedata['custom_fields']['Total Cores']['value']) != int(systemitem['count']):
+                update += patch(snipeid, config['SNIPE']['TOTAL_CORES'], systemitem['count'])
 # The below example demonstrates looking for specific installed packages
 # for example, if you'd like to populate a column in Snipe-IT for machines
 # which may have a specific package installed (GPFS client in this case)
@@ -323,6 +325,18 @@ def update_item(system):
 # /for item in systemgroup
 
 if __name__ == "__main__":
+# Logger setup
+    logformatter = logging.Formatter(fmt='[%(asctime)-15s %(levelname)6s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger()
+    streamhandler = logging.StreamHandler()
+    streamhandler.setFormatter(logformatter)
+    logger.addHandler(streamhandler)
+    # Turn off urllib3's logging
+    for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
+    if options.verbose is True:
+        logger.setLevel(logging.DEBUG)
+    else: logger.setLevel(logging.INFO)
+
 # ConfigParser setup
     config = configparser.ConfigParser()
     config['DEFAULT'] = { 'SATELLITE_URL': "https://your_satellite_url",
@@ -345,23 +359,20 @@ if __name__ == "__main__":
     NUTANIX_USERNAME = config['DEFAULT']['NUTANIX_USERNAME']
     NUTANIX_PASSWORD = config['DEFAULT']['NUTANIX_PASSWORD']
     USE_NUTANIX = config.getboolean('DEFAULT', 'USE_NUTANIX')
-
-# Logger setup
-    logformatter = logging.Formatter(fmt='[%(asctime)-15s %(levelname)6s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger()
-    streamhandler = logging.StreamHandler()
-    streamhandler.setFormatter(logformatter)
-    logger.addHandler(streamhandler)
-    # Turn off urllib3's logging
-    for item in [logging.getLogger(name) for name in logging.root.manager.loggerDict]: item.setLevel(logging.WARNING)
-    if options.verbose is True:
-        logger.setLevel(logging.DEBUG)
-    else: logger.setLevel(logging.INFO)
+    CUSTOM_FIELDS = config.getboolean('SNIPE', 'CUSTOM_FIELDS')
+    try: DEFAULT_FIELDSET = config.getint('SNIPE', 'DEFAULT_FIELDSET')
+    except:
+        logger.error("DEFAULT_FIELDSET must be an integer")
+        exit(1)
+    try: DEFAULT_CATEGORY = config.getint('SNIPE', 'DEFAULT_CATEGORY')
+    except:
+        logger.error("DEFAULT_CATEGORY must be an integer")
+        exit(1)
 
 # Set headers for connecting to Snipe
     headers = {'authorization': "Bearer " + API_TOKEN, 'accept': "application/json", 'content-type':"application/json" }
 
-#Populate a list of systems from Spacewalk
+# Populate a list of systems from Spacewalk
     if options.skipspacewalk is False:
         with xc.Server(SATELLITE_URL, verbose=0) as client:
             try:
