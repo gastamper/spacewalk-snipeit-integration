@@ -45,10 +45,11 @@ As well as the custom fields:
     1. Include the proper Spacewalk, Snipe-IT and Nutanix servers where applicable.
     2. Define a username and password for Spacewalk and/or Nutanix access.
     3. Set USE_NUTANIX to True if you intend to sync Nutanix VMs.
+	4. Use snipedump.py to determine your default fieldset and category ids, and the names of any custom fields you are using.
     4. [Generate and include an API key for Snipe-IT access.](https://snipe-it.readme.io/reference#generating-api-tokens)
 2. Edit integrator.py:
    1. The section for determining the matching of Snipe and Spacewalk assets will need to be updated - this is directly below the comment "#CONFIG1".
    2. Determine all asset models and categories by using snipedump to dump one of each type and record the model/category ID number for each.
    3. Update the 'id' and 'name' fields in the section labeled "#CONFIG2" to match the asset models and categories in your environment.
-   4. Update the section below the comment "#CONFIG3" to match any custom fields in your environment.
+   4. If necessary, update the section below the comment "#CONFIG3" to match any custom fields in your environment.
    5. Update the section below the comment "#CONFIG4" to include any fields you would like prepopulated for new Snipe-IT assets.
