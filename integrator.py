@@ -433,6 +433,9 @@ if __name__ == "__main__":
                 else:
                     logger.error("Something broke querying snipe and no rows were returned")
                 snipeid = snipedata['id']
+                if not snipedata['custom_fields']['UUID']['value'] or \
+                    snipedata['custom_fields']['UUID']['value'] != str(entity['metadata']['uuid']):
+                    update += patch(snipeid, '_snipeit_uuid_41', entity['metadata']['uuid'])
                 if not snipedata['custom_fields']['Total RAM']['value'] or \
                     int(snipedata['custom_fields']['Total RAM']['value']) != int(entity['status']['resources']['memory_size_mib']):
                     update += patch(snipeid, '_snipeit_total_ram_20', int(entity['status']['resources']['memory_size_mib']))
@@ -442,9 +445,6 @@ if __name__ == "__main__":
                 if not snipedata['custom_fields']['Total Cores']['value'] or \
                     int(snipedata['custom_fields']['Total Cores']['value']) != int(entity['status']['resources']['num_vcpus_per_socket']):
                     update += patch(snipeid, '_snipeit_total_cores_19', int(entity['status']['resources']['num_vcpus_per_socket']))
-                if not snipedata['custom_fields']['UUID']['value'] or \
-                    snipedata['custom_fields']['UUID']['value'] != str(entity['metadata']['uuid']):
-                    update += patch(snipeid, '_snipeit_uuid_41', entity['metadata']['uuid'])
                 # Default to deployable status ID
                 # TODO breakout to separate post_location function or otherwise support error handling
                 if snipedata['status_label']['id'] != 2:
