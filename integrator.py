@@ -254,7 +254,6 @@ def update_item(system):
                 buf = ' '.join([value[0] for value in addvendor['messages'].values()])
                 logger.error(f"Failed to add model {systemitem['model']}: {buf}")
                 exit(2)
-            logger.debug(addmodel)
             systemitem['model_id'] = addmodel['payload']['id']
         else:
             for item in js['rows']:
@@ -263,7 +262,6 @@ def update_item(system):
                     logger.debug(f"Got model id {item['id']}: {systemitem['model']}")
         # Update model if mismatch
 #TODO: Document this for configuration
-        # If no model information (Ubuntu), default to below
         if not systemitem['model']:
             systemitem['model'] = 'Linux Desktop'
             systemitem['model_id'] = 67
