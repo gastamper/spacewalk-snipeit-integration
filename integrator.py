@@ -462,11 +462,12 @@ if __name__ == "__main__":
                     update += patch(snipeid, '_snipeit_total_cores_19', int(entity['status']['resources']['num_vcpus_per_socket']))
                 if 'guest_tools' in entity['status']['resources'] and CUSTOM_FIELDS is True:
                     logger.debug("Found NGT")
+                    # This works for CentOS at least, untested with others
+                    osver = "".join(entity['status']['resources']['guest_tools']['nutanix_guest_tools']['guest_os_version'].split(":",2)[2].split("Linux-"))
                     if not snipedata['custom_fields']['Operating System']['value'] or \
-                        snipedata['custom_fields']['Operating System']['value'] != entity['status']['resources']['guest_tools']['nutanix_guest_tools']['guest_os_version']:
-                        logger.debug("Adding OS info")
-                        update += patch(snipeid, config['SNIPE']['OPERATING_SYSTEM'], \
-                            entity['status']['resources']['guest_tools']['nutanix_guest_tools']['guest_os_version'].split(":",2)[2])
+                        snipedata['custom_fields']['Operating System']['value'] != osver:
+                        logger.debug(f"Adding OS info: {osver}")
+                        update += patch(snipeid, config['SNIPE']['OPERATING_SYSTEM'], osver)
                 # Default to deployable status ID
                 # TODO breakout to separate post_location function or otherwise support error handling
                 if snipedata['status_label']['id'] != 2:
