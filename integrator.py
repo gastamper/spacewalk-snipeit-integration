@@ -409,9 +409,19 @@ if __name__ == "__main__":
         njs = json.loads(conn.text)
         if 'entities' in njs:
             for entity in njs['entities']:
-                update = 0 
+                update = 0
+                found = 0 
 #                print(f"{entity['status']['name']}: {entity['status']['resources']['num_sockets']} sockets x{entity['status']['resources']['num_vcpus_per_socket']} CPU per, {entity['status']['resources']['memory_size_mib']}Mb RAM")
-                njsdata = snipesearch(entity['metadata']['uuid'])
+                njsdata = snipesearch(entity['status']['name'])
+                logger.debug(f"Searched for {entity['status']['name']}")
+# Snipe doesn't do exact matches on search, so filter out names which aren't an exact match
+                for item in njsdata['rows']:
+                    if item['name'] == entity['status']['name']:
+                        founditem = item
+                        found = 1
+                        continue
+                if found == 0:
+                    logger.error(f"Couldn't find match: {entity['status']['name']}, new asset")
 # Snipe returns 0 for total if no returns, thus new system
                 if 'total' in njsdata and njsdata['total'] == 0:
                     logger.info(f"Adding new item {entity['status']['name']} to Snipe")
@@ -424,12 +434,19 @@ if __name__ == "__main__":
                     logger.error(f"Something broke querying Snipe")
                     logger.debug(f"{njsdata}")
                     exit(1)
+                sniped = snipesearch(entity['status']['name'])
+# If we just added a new entry, replace old founditem entry with new one
+                for entry in sniped['rows']:
+                    if entry['name'] == entity['status']['name']:
+                        founditem = entry
                 logger.info(f"Checking Nutanix VM {entity['metadata']['uuid']}: {entity['status']['name']}")    
-                snipedata = snipesearch(entity['status']['name'])
-                if 'rows' in snipedata and snipedata['rows'][0]:
-                    snipedata = snipedata['rows'][0]
-                else:
-                    logger.error("Something broke querying snipe and no rows were returned")
+#                snipedata = snipesearch(entity['status']['name'])
+                snipedata = founditem
+#                if 'rows' in snipedata and len(snipedata['rows']) != 0:
+#                    snipedata = snipedata['rows'][0]
+#                else:
+#                    logger.error("Something broke querying snipe and no rows were returned")
+#                    exit(1)
                 snipeid = snipedata['id']
                 if not snipedata['custom_fields']['UUID']['value'] or \
                     snipedata['custom_fields']['UUID']['value'] != str(entity['metadata']['uuid']):
@@ -443,6 +460,13 @@ if __name__ == "__main__":
                 if not snipedata['custom_fields']['Total Cores']['value'] or \
                     int(snipedata['custom_fields']['Total Cores']['value']) != int(entity['status']['resources']['num_vcpus_per_socket']):
                     update += patch(snipeid, '_snipeit_total_cores_19', int(entity['status']['resources']['num_vcpus_per_socket']))
+                if 'guest_tools' in entity['status']['resources'] and CUSTOM_FIELDS is True:
+                    logger.debug("Found NGT")
+                    if not snipedata['custom_fields']['Operating System']['value'] or \
+                        snipedata['custom_fields']['Operating System']['value'] != entity['status']['resources']['guest_tools']['nutanix_guest_tools']['guest_os_version']:
+                        logger.debug("Adding OS info")
+                        update += patch(snipeid, config['SNIPE']['OPERATING_SYSTEM'], \
+                            entity['status']['resources']['guest_tools']['nutanix_guest_tools']['guest_os_version'].split(":",2)[2])
                 # Default to deployable status ID
                 # TODO breakout to separate post_location function or otherwise support error handling
                 if snipedata['status_label']['id'] != 2:
@@ -451,6 +475,7 @@ if __name__ == "__main__":
                 if snipedata['assigned_to'] is None:
                     patch = requests.request("POST", SNIPE_URL + "/" + str(snipeid) + "/checkout", headers=headers, data="{\"checkout_to_type\":\"location\",\"assigned_location\":16}")
                 if entity['metadata']['uuid'] not in updated and update != 0: updated.append(entity['metadata']['uuid'])
+                logger.debug(f"Done with {entity['status']['name']}")
             logger.info("%s Nutanix VMs reported." % len(njs['entities']))
         elif 'state' in njs:
             for item in njs['message_list']:
@@ -460,6 +485,5 @@ if __name__ == "__main__":
     # If Spacewalk is skipped, query is empty
     try: query
     except: query = njs['entities']
-    logger.debug(updated)
     logger.info("%s total: %s skipped, %s updated, %s unchanged" % (len(query), len(skipped), len(updated), len(query) - len(updated)))
     exit(0)
