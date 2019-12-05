@@ -53,3 +53,6 @@ As well as the custom fields:
    3. Update the 'id' and 'name' fields in the section labeled "#CONFIG2" to match the asset models and categories in your environment.
    4. If necessary, update the section below the comment "#CONFIG3" to match any custom fields in your environment.
    5. Update the section below the comment "#CONFIG4" to include any fields you would like prepopulated for new Snipe-IT assets.
+
+## API rate limit
+See [this portion of the API reference](https://snipe-it.readme.io/reference#api-throttling) for modifying the API rate limit on Snipe-IT.
