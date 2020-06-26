@@ -1,3 +1,6 @@
+# NOTICE: This repository is no longer maintained.
+As of June 2020, Spacewalk has been abandoned by the maintainers.  Expect no further development to *this* repository either, as a result.
+
 # spacewalk-snipeit-integration
 This project allows for using Spacewalk and Nutanix as sources for automatically importing and updating assets in Snipe-IT, and vice versa.
 Note that it is based on the current working tree and may be inoperable at any given commit.  Regardless, functionality within
